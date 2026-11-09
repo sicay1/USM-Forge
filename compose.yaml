@@ -1,0 +1,17 @@
+services:
+  usm-forge:
+    build: .
+    image: usm-forge:0.2.0
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:${USM_PORT:-3213}:3210"
+    environment:
+      MAX_UPLOAD_MB: "512"
+      MAX_ENCODE_MB: "256"
+    volumes:
+      - usm-data:/data
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+volumes:
+  usm-data:

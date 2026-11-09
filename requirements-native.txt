@@ -1,0 +1,4 @@
+# Python 3.13 wheels, Linux amd64 / arm64. No runtime dependency on Wine or Windows.
+cricodecs==1.2.0 \
+    --hash=sha256:931532dc28867d2a6da0b2346f8d48300605d33cc47af6e3783e2133a7e0f734 \
+    --hash=sha256:ecad5c1811eb281cf351c50a6f6150a2be1fb9b0fd6ce24e6269bbc65ab867c0

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>USM Forge</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">U<span>■</span></span><span>USM <b>Forge</b><small>VIDEO → USM</small></span></a>
+    <div class="header-right"><span class="engine" id="engine">Đang kết nối…</span><span class="divider"></span><span class="version">LOCAL WORKSPACE</span></div>
+  </header>
+  <div class="shell">
+    <aside class="library">
+      <div class="section-label">WORKSPACE</div>
+      <button class="new-project" id="newProject"><span>＋</span> Tải video lên</button>
+      <div class="library-heading">Dự án <span id="projectCount">0</span></div>
+      <div id="projectList" class="project-list"></div>
+      <div class="library-bottom"><span class="mini-mark">◈</span><p>Một timeline.<br>Mọi cue point chính xác.</p><small>Dành cho CRI USM / Lineage 2</small></div>
+    </aside>
+    <main>
+      <div class="workspace-heading"><div><div class="eyebrow">VIDEO WORKSPACE</div><h1 id="projectTitle">Từ video đến USM.</h1><p id="projectSubtitle">Chọn khung hình. Đặt cue point. Hoàn thiện vòng lặp.</p></div><div class="cue-tools"><button id="deleteProject" class="button subtle" disabled>Xóa dự án</button><button id="saveProject" class="button secondary" disabled>↓ Lưu dự án</button></div></div>
+      <div id="emptyState" class="empty-state">
+        <div class="upload-orbit"><div class="upload-symbol">↥</div><span class="orbit-dot"></span></div>
+        <span class="eyebrow">BẮT ĐẦU MỘT DỰ ÁN</span><h2>Video của bạn.<br>Vòng lặp của bạn.</h2><p>Kéo video vào đây, hoặc chọn từ máy.<br>Ứng dụng sẽ chuẩn bị preview và timeline cho bạn.</p>
+        <button id="chooseFile" class="button primary">＋ Chọn video</button><small id="uploadHint">MP4 · WEBM · MOV · MKV · AVI · USM</small>
+        <div class="workflow"><span><b>01</b> Upload</span><i>→</i><span><b>02</b> Edit & loop</span><i>→</i><span><b>03</b> Export USM</span></div>
+      </div>
+      <div id="editor" class="editor" hidden>
+        <div class="editor-grid">
+          <section class="preview-card">
+            <div class="card-heading"><span><span class="live-dot"></span> PREVIEW</span><span class="pill" id="previewMode">TOÀN BỘ VIDEO</span></div>
+            <div class="video-stage"><video id="video" playsinline preload="metadata"></video><img id="frameImage" alt="Khung hình đang chọn" hidden><div id="videoPlaceholder">Đang chuẩn bị video…</div><span class="frame-badge" id="frameBadge">FRAME 0000</span></div>
+            <div class="transport"><div class="transport-buttons"><button id="prevFrame" class="icon-button" title="Frame trước (←)" aria-label="Frame trước">|◀</button><button id="play" class="play-button" title="Phát / dừng (Space)" aria-label="Phát / dừng">▶</button><button id="nextFrame" class="icon-button" title="Frame tiếp (→)" aria-label="Frame tiếp">▶|</button></div><div class="time-display"><span id="currentTime">00:00.000</span><span class="time-divider">/</span><span id="duration">00:00.000</span></div><button id="fullScreen" class="icon-button" title="Toàn màn hình" aria-label="Toàn màn hình">⛶</button></div>
+            <div class="timeline-wrap"><div class="timeline-labels"><span id="timelineStart">00:00</span><span id="frameCount">0 frames · 30 fps</span><span id="timelineEnd">00:00</span></div><div class="timeline"><img id="thumbs" alt="Các khung hình trên timeline"><div id="loopBand"></div><div id="cueMarkers"></div><input id="scrub" type="range" min="0" max="0" value="0" aria-label="Vị trí video"></div></div>
+            <div class="loop-panel"><div class="loop-title"><span>↻</span><div><strong>Vòng lặp</strong><small>Phát từ A, đến B rồi quay lại A</small></div></div><div class="loop-fields"><label>A<select id="loopA" aria-label="Cue bắt đầu vòng lặp"></select></label><span>→</span><label>B<select id="loopB" aria-label="Cue kết thúc vòng lặp"></select></label></div><div class="loop-actions"><button id="loopPlay" class="button secondary">↻ Lặp A–B</button><button id="introPlay" class="button subtle">Intro → loop</button><button id="seamPlay" class="button subtle">Xem đoạn nối</button><button id="normalPlay" class="button subtle">Toàn bộ</button></div><p class="hint">“Xem đoạn nối” ghép cuối B với đầu A để kiểm tra mối nối, không bị ảnh hưởng bởi độ trễ tua.</p></div>
+          </section>
+          <aside class="settings-card">
+            <div class="card-heading"><span>CẤU HÌNH XUẤT</span><span class="pill accent">.USM</span></div>
+            <div class="settings-body"><label class="field">Độ phân giải<select id="resolution"><option value="1920x1080">1920 × 1080 · Full HD</option><option value="1280x720">1280 × 720 · HD</option><option value="2560x1600">2560 × 1600 · L2 login</option><option value="custom">Tùy chỉnh</option></select></label><div class="two-fields"><label class="field">Rộng<input id="width" type="number" min="64" max="4094" step="2" value="1920"></label><label class="field">Cao<input id="height" type="number" min="64" max="2160" step="2" value="1080"></label></div><label class="field">Tốc độ khung hình<select id="fps"><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label><button id="applySettings" class="button secondary wide">Áp dụng & tạo lại preview</button><p class="hint">Giữ tỷ lệ ảnh, thêm viền khi cần. Cue point được quy đổi theo thời gian khi đổi FPS.</p>
+            <div class="settings-separator"></div><label class="field">Bitrate <span id="bitrateLabel">6 Mbps</span><input id="bitrate" type="range" min="1" max="40" step="1" value="6"></label><div class="scale-labels"><span>Nhẹ hơn</span><span>Chi tiết hơn</span></div><label class="check-field"><input id="audio" type="checkbox"><span>Giữ âm thanh</span></label><p class="hint" id="audioHint">Theo luồng âm thanh của video nguồn.</p>
+            <div class="export-summary"><span>ĐỊNH DẠNG ĐẦU RA</span><strong>CRI USM <small>+ cue points</small></strong><p>Xuất từ bản chuẩn hóa đầy đủ chất lượng.</p></div><button id="export" class="button primary wide export-button">↗ Xuất file USM</button><p id="exportLimit" class="hint centered"></p><p class="hint centered">Cue point là mốc sự kiện. Hành vi trong game phụ thuộc client.</p></div>
+          </aside>
+        </div>
+        <section class="cues-card"><div class="cue-heading"><div><h2>Cue points <span id="cueCount">0</span></h2><p>Đặt mốc ngay tại frame đang xem, hoặc nhập số frame cụ thể.</p></div><div class="cue-tools"><button id="importCue" class="button subtle">Nhập .txt</button><button id="importProject" class="button subtle">Mở dự án .json</button><button id="downloadCue" class="button subtle">↓ .txt</button><button id="addCue" class="button secondary">＋ Thêm tại đây</button><button id="saveCues" class="button primary">Lưu cue</button></div></div><div class="cue-table-wrap"><table><thead><tr><th>TÊN CUE POINT</th><th>ID</th><th>FRAME</th><th>THỜI GIAN</th><th></th></tr></thead><tbody id="cueRows"></tbody></table></div><div class="cue-footer"><span id="cueSaveState">Đã lưu</span><span>Frame tính từ 0 · B là ranh giới kết thúc, không nằm trong đoạn lặp</span></div></section>
+        <section id="downloads" class="downloads" hidden><div><span class="success-icon">✓</span><h2>Bản xuất đã sẵn sàng</h2><p id="downloadInfo"></p></div><div id="downloadLinks"></div></section>
+      </div>
+      <section id="jobPanel" class="job-panel" hidden><div><span class="spinner" id="jobSpinner"></span><strong id="jobPhase">Đang xử lý…</strong><span id="jobPercent">0%</span></div><progress id="jobProgress" max="100" value="0"></progress><p id="jobError" hidden></p></section>
+      <footer>USM Forge <span>•</span> Preview vòng lặp trên web không thay thế kiểm tra hành vi cue point trong client.</footer>
+    </main>
+  </div>
+  <div id="toast" role="status" hidden></div>
+  <input id="fileInput" type="file" accept="video/*,.usm,.mkv,.avi,.mov,.webm,.mp4,.m4v,.wmv,.flv,.mpeg,.mpg" hidden>
+  <input id="cueInput" type="file" accept=".txt" hidden><input id="projectInput" type="file" accept=".json" hidden>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

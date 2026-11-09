@@ -1,0 +1,11 @@
+data
+node_modules
+.git
+test-output
+*.log
+research
+.env
+.env.*
+*.zip
+*.tar
+.github

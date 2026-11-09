@@ -1,0 +1,24 @@
+{
+  "name": "usm-forge",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Convert videos to USM, preview loops, and edit frame-accurate cue points.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "fixtures": "node scripts/generate-fixtures.mjs"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sicay1/USM-Forge.git"
+  }
+}
