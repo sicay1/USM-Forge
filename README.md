@@ -107,7 +107,7 @@ npm ci
 npm test
 ```
 
-`npm test` covers model/metadata logic, DOM interactions, and packaged logo/favicon assets; it does not run native encoding or a real browser.
+`npm test` covers model/metadata logic, DOM interactions, HTTP Host/Origin protection, and packaged logo/favicon assets; it does not run native encoding or a real browser. HTTP tests use an isolated temporary data directory and an ephemeral loopback port.
 
 For media/API checks, start a separate test instance using the container instructions above. On the machine running the smoke scripts, put FFmpeg and FFprobe on PATH (or set `FFMPEG_PATH` and `FFPROBE_PATH`), then generate synthetic fixtures:
 
@@ -121,6 +121,8 @@ Smoke scripts default to `http://127.0.0.1:3213`; set `BASE_URL` to test another
 **Known test limitation:** `scripts/smoke-audio.mjs` and `scripts/smoke-avi.mjs` still assert the legacy embedded cue names `loop_point` / `loop_start`. The current API normalizes those names to A/B, so these scripts need their expected names updated before they can pass against this version. They only clean up their server projects on success.
 
 For a directly configured development environment, `npm start` defaults to `http://127.0.0.1:3210` (not Compose's host port 3213) and stores projects in `data/`. Set `HOST`, `PORT`, and `DATA_DIR` as needed; native encoding also needs the Python dependencies and `USM_BACKEND=native` / `PYTHON_PATH` configured appropriately. Merely running `npm ci` does not install media encoders.
+
+Use `localhost`, `127.0.0.1`, or `[::1]` in the browser URL. Host and Origin checks protect the local API from requests addressed to untrusted domains. Custom hostnames require an explicit `ALLOWED_HOSTS` list; see [SECURITY.md](SECURITY.md). Changing the listening `HOST` does not automatically trust additional names.
 
 `scripts/native-matrix.mjs` checks native encoding at all five supported frame rates in a configured Linux environment. Generated files stay in ignored `test-output/`; no sample game footage is needed.
 

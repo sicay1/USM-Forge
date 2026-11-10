@@ -1,6 +1,10 @@
 /* Vietnamese source strings are stable keys; missing translations fall back safely. */
 (() => {
   const en = {
+    'Host không hợp lệ.': 'Invalid host.',
+    'Host không được phép.': 'Host is not allowed.',
+    'Header yêu cầu bị trùng.': 'Duplicate request header.',
+    'Yêu cầu khác nguồn bị từ chối.': 'Cross-origin request rejected.',
     'Đang tải khung hình…': 'Loading frame…',
     'Không tải được khung hình. Hãy thử tua lại.': 'Could not load the frame. Please try seeking again.',
     'Đang kết nối…': 'Connecting…', '＋ Tải video lên': '＋ Upload video',

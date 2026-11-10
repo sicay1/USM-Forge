@@ -8,12 +8,14 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { ensure, settings, cueText, parseCueText, loopRange, cuePair, rescaleCuePair, Queue } from './lib/model.mjs';
 import * as media from './lib/media.mjs';
+import { createRequestGuard } from './lib/http-security.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const data = path.resolve(process.env.DATA_DIR || path.join(root, 'data'));
 const maxUpload = Number(process.env.MAX_UPLOAD_MB || 512) * 1024 * 1024;
 const projects = new Map(), queue = new Queue(1), previews = new Queue(1);
 const port = Number(process.env.PORT || 3210), host = process.env.HOST || '127.0.0.1';
+const guardRequest = createRequestGuard(process.env.ALLOWED_HOSTS);
 await mkdir(data, { recursive: true });
 for (const id of await readdir(data)) {
   if (!/^[a-f0-9-]{36}$/.test(id)) continue;
@@ -96,10 +98,10 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
   try {
+    guardRequest(req);
     const url = new URL(req.url, 'http://localhost');
     const method = req.method;
     if (!['GET', 'HEAD'].includes(method)) {
-      if (req.headers.origin) ensure(new URL(req.headers.origin).host === req.headers.host, 'Yêu cầu khác nguồn bị từ chối.', 403);
       if (url.pathname !== '/api/projects') ensure((req.headers['content-type'] || '').startsWith('application/json'), 'Yêu cầu cần dùng JSON.', 415);
     }
     if (url.pathname === '/api/health' && method === 'GET') { const encoder=await media.encoderStatus(); return json(res, { name:'USM Forge',version:'0.2.0',encoder:encoder.available,encoderInfo:encoder,platform:process.platform,maxUploadMB:maxUpload/1024/1024,queue:queue.pending.length,active:queue.active }); }
@@ -216,4 +218,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.requestTimeout = 15 * 60000;
-server.listen(port, host, () => console.log(`USM Forge: http://${host}:${port}\nData: ${data}\nEncoder backend: ${media.backend}`));
+server.listen(port, host, () => console.log(`USM Forge: http://${host}:${server.address().port}\nData: ${data}\nEncoder backend: ${media.backend}`));

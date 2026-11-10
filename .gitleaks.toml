@@ -1,0 +1,12 @@
+title = "USM Forge secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "SHA-256 of the publicly documented CriCodecs permission evidence, not a credential"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/legal/cricodecs-permission\.json$''']
+regexTarget = "secret"
+regexes = ['''^A64AE5BFF61F7B2357F402BFF38BBA9361A8AE17644642D350F05A0E62E132D9$''']
