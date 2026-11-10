@@ -1,6 +1,6 @@
 # USM Forge
 
-**Convert videos to USM. Preview loops. Add cue points.**
+**Convert videos to USM. Set A/B cue points. Preview loops.**
 
 A local web app for converting common video formats to CRI USM, with frame-by-frame inspection, cue-point editing, and loop preview before export. The Linux container runs the whole pipeline using FFmpeg and CriCodecs. No Wine or proprietary Windows encoder is required.
 
@@ -10,7 +10,7 @@ The current interface is in Vietnamese. This is an independent community project
 
 - Upload MP4, WebM, MOV, MKV, AVI and other supported video containers.
 - Play the normalized preview or inspect individual frames.
-- Add/edit cue points; import and export `cue_point.txt`.
+- Edit exactly two cue points, A and B, by dragging timeline markers or entering frames; import and export `cue_point.txt`.
 - Preview A–B loops, intro-then-loop playback, and a rendered clip across the loop boundary.
 - Export MPEG-1 video with optional stereo ADX audio in a USM container, with cue points embedded.
 - Download USM, cue text, project JSON, and a structural/decoder verification report.
@@ -53,12 +53,12 @@ This repository supplies source and local build instructions. It does not advert
 
 ## Using the editor
 
-1. Upload a video and wait for normalization. Preview, frame inspection, cue positions and export all use the same constant-frame-rate master.
+1. Upload a video and follow upload/normalization progress in the sidebar. Preview, frame inspection, cue positions and export all use the same constant-frame-rate master.
 2. Use Space for play/pause and the left/right arrows to inspect frames. Frame numbering starts at zero.
-3. Add cue points at the current frame or enter frame numbers. Save cue changes before switching projects.
-4. Select loop endpoints A and B. Playback includes A and stops before B: `[A, B)`. A cue at `totalFrames` denotes the end boundary.
+3. Every project has exactly two cues: A (ID 1), initially at frame 0, and B (ID 2), initially at `totalFrames`. Drag their timeline handles, use arrow keys (Shift for 10 frames), enter frame numbers, or set them to the current frame. Save changes before switching projects.
+4. Looping is enabled only when both A is after frame 0 and B is before `totalFrames`. Playback includes A and stops before B: `[A, B)`. The transport groups play/pause, A–B loop, intro-then-loop, seam preview, and whole-video playback. Whole-video playback runs once.
 5. Use **Xem đoạn nối** (seam preview) to render the last part before B followed by the first part after A. This avoids browser seek latency when judging the visual join; this short clip is silent.
-6. If you change resolution or FPS, apply the settings. Cues are remapped to the nearest frame by time; select loop endpoints again after the rebuild.
+6. If you change resolution or FPS, apply the settings. A/B are preserved by time and remapped to the nearest frame; the end boundary remains at the new video end.
 7. Export and download the result. Each export stores a snapshot of settings and cues.
 
 The loop controls simulate the interval you select. They do not infer game behavior from names such as `loop_point`. Actual cue handling is up to the game client.
@@ -69,13 +69,11 @@ The first line of `cue_point.txt` is the timebase in ticks per second. Each subs
 
 ```text
 1000
-0,0,start
-500,1,loop_point
-6500,2,loop_start
-7000,0,end
+500,1,A
+6500,2,B
 ```
 
-Imports are snapped to the nearest frame. Exports use 1000 ticks/second and rounded millisecond timestamps. Names must be unique and use Latin letters, digits, `_`, `-`, or `.`. IDs can repeat. Additional cue parameter columns are not supported.
+Text imports must contain exactly two cues and are snapped to the nearest frame, then normalized to A (ID 1) and B (ID 2). Exports use 1000 ticks/second and rounded millisecond timestamps. Additional cue parameter columns are not supported. Existing project JSON files retain their saved A/B range when migrated to two cues; old exported files are not modified. `loop.enabled` is derived from both boundaries being inside the video, not an independent setting or a guarantee of game-client behavior.
 
 Project JSON contains settings/cues/loop selection, not the source video. To restore on another machine, upload the same video, apply the matching resolution/FPS, then import the JSON. The `usm-studio/v1` schema identifier is intentionally retained for compatibility with earlier project files.
 

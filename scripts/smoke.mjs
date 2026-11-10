@@ -25,18 +25,16 @@ assert.equal(p.totalFrames, Math.round(p.duration * p.settings.fps));
 const prefix=`/api/projects/${p.id}`;
 let r=await fetch(base+prefix+'/media/preview.mp4',{headers:{Range:'bytes=0-99'}});assert.equal(r.status,206);assert.equal((await r.arrayBuffer()).byteLength,100);
 r=await fetch(base+prefix+'/frame?n=15');assert.equal(r.status,200);const frame=Buffer.from(await r.arrayBuffer());assert.equal(frame.readUInt16BE(0),0xffd8);
-p=await send(prefix+'/cues',{text:'1000\n0,0,start\n500,1,loop_point\n6500,2,loop_start\n7000,0,end'},'PUT');assert.equal(p.cues[1].frame,15);
+p=await send(prefix+'/cues',{text:'1000\n500,1,A\n6500,2,B'},'PUT');assert.equal(p.cues[0].frame,15);assert.equal(p.cues.length,2);assert.equal(p.loop.enabled,true);
 await send(prefix+'/cues',{cues:p.cues,loop:{a:15,b:195}},'PUT');
 await send(prefix+'/seam',{a:15,b:195});p=await wait(p.id);
 r=await fetch(base+p.seam.url);assert.equal(r.status,200);const seam=Buffer.from(await r.arrayBuffer());assert.ok(seam.length>1000);
 await send(prefix+'/export',{cues:p.cues,loop:{a:15,b:195},bitrate:6000000,audio:false});p=await wait(p.id);
 const exp=p.exports[0];assert.ok(exp.verified);assert.equal(exp.frames,p.totalFrames);
 r=await fetch(base+prefix+`/exports/${exp.id}/video.usm`);assert.equal(r.status,200);const usm=Buffer.from(await r.arrayBuffer());assert.equal(usm.subarray(0,4).toString(),'CRID');
-r=await fetch(base+prefix+`/exports/${exp.id}/cue_point.txt`);assert.match(await r.text(),/6500,2,loop_start/);
-assert.ok(usm.includes(Buffer.from('loop_point')), 'USM must contain embedded cue point names');
-assert.ok(usm.includes(Buffer.from('loop_start')), 'USM must contain embedded loop endpoint');
+r=await fetch(base+prefix+`/exports/${exp.id}/cue_point.txt`);assert.match(await r.text(),/6500,2,B/);
 if(exp.backend==='native') {
-  const structure=inspectUsm(usm);assert.deepEqual(structure.cues,[{name:'start',time:0,id:0},{name:'loop_point',time:500,id:1},{name:'loop_start',time:6500,id:2},{name:'end',time:7000,id:0}]);
+  const structure=inspectUsm(usm);assert.deepEqual(structure.cues,[{name:'A',time:500,id:1},{name:'B',time:6500,id:2}]);
   assert.ok(structure.seekCount>0);assert.equal(structure.frames,p.totalFrames);
   const report=await json(prefix+`/exports/${exp.id}/verification.json`);assert.equal(report.gameClientTested,false);assert.equal(report.mediaHash,structure.mediaHash);
 }

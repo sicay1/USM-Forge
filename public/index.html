@@ -2,55 +2,89 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>USM Forge</title><link rel="stylesheet" href="/style.css">
+  <title>USM Forge</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/editor.css">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/film-u-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/film-u-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/film-u-180.png">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/"><span class="brand-mark">U<span>■</span></span><span>USM <b>Forge</b><small>VIDEO → USM</small></span></a>
-    <div class="header-right"><span class="engine" id="engine">Đang kết nối…</span><span class="divider"></span><span class="version">LOCAL WORKSPACE</span></div>
+    <a class="brand" href="/"><img class="brand-mark" src="/icons/film-u-64.png" srcset="/icons/film-u-64.png 1x, /icons/film-u-128.png 2x" width="32" height="32" alt=""><span>USM <b>Forge</b></span></a>
+    <div class="header-right"><span class="engine" id="engine" data-i18n="Đang kết nối…">Đang kết nối…</span><button id="languageToggle" class="button secondary" type="button" aria-label="Switch to English">English</button></div>
   </header>
   <div class="shell">
     <aside class="library">
-      <div class="section-label">WORKSPACE</div>
-      <button class="new-project" id="newProject"><span>＋</span> Tải video lên</button>
-      <div class="library-heading">Dự án <span id="projectCount">0</span></div>
+      <button class="new-project" id="newProject" data-i18n="＋ Tải video lên">＋ Tải video lên</button>
+      <div class="library-heading"><span data-i18n="Dự án">Dự án</span><span id="projectCount">0</span></div>
       <div id="projectList" class="project-list"></div>
-      <div class="library-bottom"><span class="mini-mark">◈</span><p>Một timeline.<br>Mọi cue point chính xác.</p><small>Dành cho CRI USM / Lineage 2</small></div>
+      <section id="jobPanel" class="job-panel" data-i18n-aria-label="Tiến độ video" aria-live="polite" hidden>
+        <p id="jobName"></p><div><span class="spinner" id="jobSpinner"></span><strong id="jobPhase" data-i18n="Đang xử lý…">Đang xử lý…</strong><span id="jobPercent">0%</span></div>
+        <progress id="jobProgress" data-i18n-aria-label="Tiến độ xử lý" max="100" value="0"></progress><p id="jobError" hidden></p>
+      </section>
     </aside>
     <main>
-      <div class="workspace-heading"><div><div class="eyebrow">VIDEO WORKSPACE</div><h1 id="projectTitle">Từ video đến USM.</h1><p id="projectSubtitle">Chọn khung hình. Đặt cue point. Hoàn thiện vòng lặp.</p></div><div class="cue-tools"><button id="deleteProject" class="button subtle" disabled>Xóa dự án</button><button id="saveProject" class="button secondary" disabled>↓ Lưu dự án</button></div></div>
+      <div class="workspace-heading">
+        <div class="project-heading"><h1 id="projectTitle" data-i18n="Từ video đến USM.">Từ video đến USM.</h1><p id="projectSubtitle" data-i18n="Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.">Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.</p></div>
+        <details class="project-menu"><summary class="button secondary" data-i18n="Dự án ▾">Dự án ▾</summary><div class="project-menu-items">
+          <button id="saveProject" class="button subtle" data-i18n="↓ Lưu dự án" disabled>↓ Lưu dự án</button>
+          <button id="importProject" class="button subtle" data-i18n="Mở dự án .json" disabled>Mở dự án .json</button>
+          <button id="importCue" class="button subtle" data-i18n="Nhập A/B .txt" disabled>Nhập A/B .txt</button>
+          <button id="downloadCue" class="button subtle" data-i18n="↓ Tải A/B .txt" disabled>↓ Tải A/B .txt</button>
+          <button id="deleteProject" class="button subtle danger" data-i18n="Xóa dự án" disabled>Xóa dự án</button>
+        </div></details>
+      </div>
       <div id="emptyState" class="empty-state">
         <div class="upload-orbit"><div class="upload-symbol">↥</div><span class="orbit-dot"></span></div>
-        <span class="eyebrow">BẮT ĐẦU MỘT DỰ ÁN</span><h2>Video của bạn.<br>Vòng lặp của bạn.</h2><p>Kéo video vào đây, hoặc chọn từ máy.<br>Ứng dụng sẽ chuẩn bị preview và timeline cho bạn.</p>
-        <button id="chooseFile" class="button primary">＋ Chọn video</button><small id="uploadHint">MP4 · WEBM · MOV · MKV · AVI · USM</small>
-        <div class="workflow"><span><b>01</b> Upload</span><i>→</i><span><b>02</b> Edit & loop</span><i>→</i><span><b>03</b> Export USM</span></div>
+        <h2 data-i18n="Video của bạn. Vòng lặp của bạn.">Video của bạn. Vòng lặp của bạn.</h2>
+        <p data-i18n="Kéo video vào đây, hoặc chọn từ máy.">Kéo video vào đây, hoặc chọn từ máy.</p>
+        <button id="chooseFile" class="button primary" data-i18n="＋ Chọn video">＋ Chọn video</button><small id="uploadHint">MP4 · WEBM · MOV · MKV · AVI · USM</small>
       </div>
       <div id="editor" class="editor" hidden>
         <div class="editor-grid">
           <section class="preview-card">
-            <div class="card-heading"><span><span class="live-dot"></span> PREVIEW</span><span class="pill" id="previewMode">TOÀN BỘ VIDEO</span></div>
-            <div class="video-stage"><video id="video" playsinline preload="metadata"></video><img id="frameImage" alt="Khung hình đang chọn" hidden><div id="videoPlaceholder">Đang chuẩn bị video…</div><span class="frame-badge" id="frameBadge">FRAME 0000</span></div>
-            <div class="transport"><div class="transport-buttons"><button id="prevFrame" class="icon-button" title="Frame trước (←)" aria-label="Frame trước">|◀</button><button id="play" class="play-button" title="Phát / dừng (Space)" aria-label="Phát / dừng">▶</button><button id="nextFrame" class="icon-button" title="Frame tiếp (→)" aria-label="Frame tiếp">▶|</button></div><div class="time-display"><span id="currentTime">00:00.000</span><span class="time-divider">/</span><span id="duration">00:00.000</span></div><button id="fullScreen" class="icon-button" title="Toàn màn hình" aria-label="Toàn màn hình">⛶</button></div>
-            <div class="timeline-wrap"><div class="timeline-labels"><span id="timelineStart">00:00</span><span id="frameCount">0 frames · 30 fps</span><span id="timelineEnd">00:00</span></div><div class="timeline"><img id="thumbs" alt="Các khung hình trên timeline"><div id="loopBand"></div><div id="cueMarkers"></div><input id="scrub" type="range" min="0" max="0" value="0" aria-label="Vị trí video"></div></div>
-            <div class="loop-panel"><div class="loop-title"><span>↻</span><div><strong>Vòng lặp</strong><small>Phát từ A, đến B rồi quay lại A</small></div></div><div class="loop-fields"><label>A<select id="loopA" aria-label="Cue bắt đầu vòng lặp"></select></label><span>→</span><label>B<select id="loopB" aria-label="Cue kết thúc vòng lặp"></select></label></div><div class="loop-actions"><button id="loopPlay" class="button secondary">↻ Lặp A–B</button><button id="introPlay" class="button subtle">Intro → loop</button><button id="seamPlay" class="button subtle">Xem đoạn nối</button><button id="normalPlay" class="button subtle">Toàn bộ</button></div><p class="hint">“Xem đoạn nối” ghép cuối B với đầu A để kiểm tra mối nối, không bị ảnh hưởng bởi độ trễ tua.</p></div>
+            <div class="card-heading"><span data-i18n="XEM TRƯỚC">XEM TRƯỚC</span><span class="pill" id="previewMode" data-i18n="TOÀN BỘ VIDEO">TOÀN BỘ VIDEO</span></div>
+            <div class="video-stage" aria-busy="false"><video id="video" playsinline preload="metadata"></video><img id="frameImage" data-i18n-alt="Khung hình đang chọn" hidden><div id="videoPlaceholder" data-i18n="Đang chuẩn bị video…">Đang chuẩn bị video…</div><span class="frame-badge" id="frameBadge">FRAME 0000</span><div id="frameLoading" class="frame-loading" role="status" aria-live="polite" hidden><span class="frame-loading-spinner" aria-hidden="true"></span><span data-i18n="Đang tải khung hình…">Đang tải khung hình…</span></div></div>
+            <div class="transport">
+              <div class="transport-buttons"><button id="prevFrame" class="icon-button" data-i18n-title="Frame trước (←)" data-i18n-aria-label="Frame trước">|◀</button><button id="play" class="play-button" data-i18n-title="Phát / dừng (Space)" data-i18n-aria-label="Phát / dừng">▶</button><button id="nextFrame" class="icon-button" data-i18n-title="Frame tiếp (→)" data-i18n-aria-label="Frame tiếp">▶|</button></div>
+              <div class="time-display"><span id="currentTime">00:00.000</span><span class="time-divider">/</span><span id="duration">00:00.000</span></div>
+              <div class="loop-actions" role="group" data-i18n-aria-label="Chế độ phát"><button id="loopPlay" class="button secondary" data-i18n="↻ Lặp A–B">↻ Lặp A–B</button><button id="introPlay" class="button subtle" data-i18n="Intro → loop">Intro → loop</button><button id="seamPlay" class="button subtle" data-i18n="Xem đoạn nối" data-i18n-title="Ghép cuối B với đầu A để kiểm tra mối nối">Xem đoạn nối</button><button id="normalPlay" class="button subtle" data-i18n="Toàn bộ">Toàn bộ</button></div>
+              <button id="fullScreen" class="icon-button" data-i18n-title="Toàn màn hình" data-i18n-aria-label="Toàn màn hình">⛶</button>
+            </div>
+            <div class="timeline-wrap">
+              <div class="timeline-labels"><span id="timelineStart">00:00</span><span id="frameCount">0 frames · 30 fps</span><span id="timelineEnd">00:00</span></div>
+              <div class="timeline"><img id="thumbs" data-i18n-alt="Các khung hình trên timeline"><div id="loopBand"></div><input id="scrub" type="range" min="0" max="0" value="0" data-i18n-aria-label="Vị trí video"><div id="cueMarkers"><button id="markerA" class="cue-marker marker-a" role="slider" data-i18n-aria-label="Mốc A" aria-orientation="horizontal" type="button">A</button><button id="markerB" class="cue-marker marker-b" role="slider" data-i18n-aria-label="Mốc B" aria-orientation="horizontal" type="button">B</button></div></div>
+              <div class="cue-actions">
+                <div class="cue-group"><button id="setA" class="button secondary" data-i18n="Đặt A" data-i18n-title="Đặt A tại frame đang xem">Đặt A</button><button id="goToA" class="button subtle" data-i18n="Đến A">Đến A</button><output id="pointA">00:00.000</output></div>
+                <div class="cue-group"><button id="setB" class="button secondary" data-i18n="Đặt B" data-i18n-title="Đặt B tại frame đang xem">Đặt B</button><button id="goToB" class="button subtle" data-i18n="Đến B" data-i18n-title="B là ranh giới kết thúc; cuối video hiển thị frame cuối">Đến B</button><output id="pointB">00:00.000</output></div>
+                <button id="saveCues" class="button primary" data-i18n="Lưu A/B">Lưu A/B</button>
+              </div>
+              <div class="timeline-summary"><span id="loopStatus"></span><span id="cueSaveState" role="status" data-i18n="Đã lưu">Đã lưu</span></div>
+            </div>
           </section>
           <aside class="settings-card">
-            <div class="card-heading"><span>CẤU HÌNH XUẤT</span><span class="pill accent">.USM</span></div>
-            <div class="settings-body"><label class="field">Độ phân giải<select id="resolution"><option value="1920x1080">1920 × 1080 · Full HD</option><option value="1280x720">1280 × 720 · HD</option><option value="2560x1600">2560 × 1600 · L2 login</option><option value="custom">Tùy chỉnh</option></select></label><div class="two-fields"><label class="field">Rộng<input id="width" type="number" min="64" max="4094" step="2" value="1920"></label><label class="field">Cao<input id="height" type="number" min="64" max="2160" step="2" value="1080"></label></div><label class="field">Tốc độ khung hình<select id="fps"><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label><button id="applySettings" class="button secondary wide">Áp dụng & tạo lại preview</button><p class="hint">Giữ tỷ lệ ảnh, thêm viền khi cần. Cue point được quy đổi theo thời gian khi đổi FPS.</p>
-            <div class="settings-separator"></div><label class="field">Bitrate <span id="bitrateLabel">6 Mbps</span><input id="bitrate" type="range" min="1" max="40" step="1" value="6"></label><div class="scale-labels"><span>Nhẹ hơn</span><span>Chi tiết hơn</span></div><label class="check-field"><input id="audio" type="checkbox"><span>Giữ âm thanh</span></label><p class="hint" id="audioHint">Theo luồng âm thanh của video nguồn.</p>
-            <div class="export-summary"><span>ĐỊNH DẠNG ĐẦU RA</span><strong>CRI USM <small>+ cue points</small></strong><p>Xuất từ bản chuẩn hóa đầy đủ chất lượng.</p></div><button id="export" class="button primary wide export-button">↗ Xuất file USM</button><p id="exportLimit" class="hint centered"></p><p class="hint centered">Cue point là mốc sự kiện. Hành vi trong game phụ thuộc client.</p></div>
+            <div class="card-heading"><span data-i18n="CẤU HÌNH XUẤT">CẤU HÌNH XUẤT</span><span class="pill accent">.USM</span></div>
+            <div class="settings-body">
+              <label class="field"><span data-i18n="Độ phân giải">Độ phân giải</span><select id="resolution"><option value="1920x1080">1920 × 1080 · Full HD</option><option value="1280x720">1280 × 720 · HD</option><option value="2560x1600">2560 × 1600 · L2 login</option><option value="custom" data-i18n="Tùy chỉnh">Tùy chỉnh</option></select></label>
+              <div class="two-fields"><label class="field"><span data-i18n="Rộng">Rộng</span><input id="width" type="number" min="64" max="4094" step="2" value="1920"></label><label class="field"><span data-i18n="Cao">Cao</span><input id="height" type="number" min="64" max="2160" step="2" value="1080"></label></div>
+              <label class="field"><span data-i18n="Tốc độ khung hình">Tốc độ khung hình</span><select id="fps"><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label>
+              <button id="applySettings" class="button secondary wide" data-i18n="Áp dụng & tạo lại preview">Áp dụng & tạo lại preview</button>
+              <p class="hint settings-hint" data-i18n="Giữ tỷ lệ ảnh. A/B được quy đổi theo thời gian khi đổi FPS.">Giữ tỷ lệ ảnh. A/B được quy đổi theo thời gian khi đổi FPS.</p>
+              <div class="settings-separator"></div>
+              <label class="field bitrate-field">Bitrate <span id="bitrateLabel">6 Mbps</span><input id="bitrate" type="range" min="1" max="40" step="1" value="6"></label>
+              <label class="check-field"><input id="audio" type="checkbox"><span data-i18n="Giữ âm thanh">Giữ âm thanh</span></label><p class="hint" id="audioHint"></p>
+              <button id="export" class="button primary wide export-button" data-i18n="↗ Xuất file USM">↗ Xuất file USM</button><p id="exportLimit" class="hint"></p>
+              <details class="export-notes"><summary data-i18n="Thông tin xuất">Thông tin xuất</summary><p class="hint" data-i18n="Xuất từ bản chuẩn hóa đầy đủ chất lượng. Hành vi cue trong game phụ thuộc client.">Xuất từ bản chuẩn hóa đầy đủ chất lượng. Hành vi cue trong game phụ thuộc client.</p></details>
+              <details id="downloads" class="downloads" hidden><summary data-i18n="Bản xuất đã sẵn sàng">Bản xuất đã sẵn sàng</summary><p id="downloadInfo"></p><div id="downloadLinks"></div></details>
+            </div>
           </aside>
         </div>
-        <section class="cues-card"><div class="cue-heading"><div><h2>Cue points <span id="cueCount">0</span></h2><p>Đặt mốc ngay tại frame đang xem, hoặc nhập số frame cụ thể.</p></div><div class="cue-tools"><button id="importCue" class="button subtle">Nhập .txt</button><button id="importProject" class="button subtle">Mở dự án .json</button><button id="downloadCue" class="button subtle">↓ .txt</button><button id="addCue" class="button secondary">＋ Thêm tại đây</button><button id="saveCues" class="button primary">Lưu cue</button></div></div><div class="cue-table-wrap"><table><thead><tr><th>TÊN CUE POINT</th><th>ID</th><th>FRAME</th><th>THỜI GIAN</th><th></th></tr></thead><tbody id="cueRows"></tbody></table></div><div class="cue-footer"><span id="cueSaveState">Đã lưu</span><span>Frame tính từ 0 · B là ranh giới kết thúc, không nằm trong đoạn lặp</span></div></section>
-        <section id="downloads" class="downloads" hidden><div><span class="success-icon">✓</span><h2>Bản xuất đã sẵn sàng</h2><p id="downloadInfo"></p></div><div id="downloadLinks"></div></section>
       </div>
-      <section id="jobPanel" class="job-panel" hidden><div><span class="spinner" id="jobSpinner"></span><strong id="jobPhase">Đang xử lý…</strong><span id="jobPercent">0%</span></div><progress id="jobProgress" max="100" value="0"></progress><p id="jobError" hidden></p></section>
-      <footer>USM Forge <span>•</span> Preview vòng lặp trên web không thay thế kiểm tra hành vi cue point trong client.</footer>
     </main>
   </div>
   <div id="toast" role="status" hidden></div>
   <input id="fileInput" type="file" accept="video/*,.usm,.mkv,.avi,.mov,.webm,.mp4,.m4v,.wmv,.flv,.mpeg,.mpg" hidden>
   <input id="cueInput" type="file" accept=".txt" hidden><input id="projectInput" type="file" accept=".json" hidden>
-  <script src="/app.js" type="module"></script>
+  <script src="/i18n.js"></script><script src="/app.js" type="module"></script>
 </body>
 </html>

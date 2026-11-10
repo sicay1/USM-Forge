@@ -1,0 +1,169 @@
+/* A/B editor and sidebar progress. Keep marker hit targets above the scrubber. */
+.video-stage .frame-loading {
+  position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px);
+  padding: 12px 16px; border: 1px solid #bda1ff66; border-radius: 9px;
+  background: #14161bed; color: var(--text); font-size: 12px;
+  box-shadow: 0 4px 24px #0006; pointer-events: none;
+}
+.frame-loading-spinner {
+  width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid #bda1ff44;
+  border-top-color: var(--accent); border-radius: 50%; animation: frame-spin .8s linear infinite;
+}
+@keyframes frame-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .frame-loading-spinner { animation: none; } }
+.transport { flex-wrap: wrap; gap: 10px; }
+.transport .loop-actions { margin: 0; gap: 3px; }
+.transport .time-display { white-space: nowrap; min-width: 150px; }
+.timeline-wrap { padding: 18px 24px 16px; }
+.timeline-labels { margin-bottom: 32px; }
+#cueMarkers { z-index: 6; }
+.cue-marker {
+  top: -23px; width: 28px; height: 24px; padding: 0;
+  border: 1px solid #d8c5ff; border-radius: 5px 5px 2px 2px;
+  background: var(--accent); color: #20162f; font-size: 11px; font-weight: 750;
+  pointer-events: auto; touch-action: none; cursor: ew-resize;
+  user-select: none; transform: translateX(-50%);
+}
+.cue-marker::after {
+  content: ''; position: absolute; top: 23px; left: 50%; transform: translateX(-50%);
+  width: 2px; height: 56px; background: var(--accent); pointer-events: none;
+}
+.marker-a { transform: none; }
+.marker-a::after { left: 0; transform: none; }
+.marker-b { transform: translateX(-100%); }
+.marker-b::after { left: auto; right: 0; transform: none; }
+.cue-marker:focus-visible { outline: 2px solid white; outline-offset: 3px; z-index: 1; }
+.cue-marker:active { background: #e2d4ff; }
+#loopBand.inactive { border-color: #646778; background: #9296aa12; }
+.timeline-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 15px; font-size: 10px; color: var(--muted); line-height: 1.6; }
+#loopStatus, .cue-name { color: var(--accent); }
+.library .job-panel { padding: 12px 10px; margin-top: 16px; border-radius: 8px; min-width: 0; }
+.library .job-panel > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.library .job-panel strong { flex: 1; font-size: 11px; line-height: 1.5; }
+.library .job-panel #jobPercent { margin-left: auto; font-size: 10px; }
+.library .job-panel progress { width: 100%; height: 5px; margin-top: 12px; }
+.library .job-panel p { overflow-wrap: anywhere; font-size: 10px; line-height: 1.6; }
+.library .job-panel #jobName { margin: 0 0 9px; color: var(--accent); }
+.library .job-panel .spinner { width: 12px; height: 12px; flex-shrink: 0; }
+@media (max-width: 1200px) {
+  .transport .loop-actions { order: 3; flex-basis: 100%; }
+}
+@media (max-width: 600px) {
+  .timeline-wrap { padding-inline: 18px; }
+  .transport .loop-actions { justify-content: space-between; }
+  .transport .loop-actions .button { padding-inline: 6px; }
+  .library .job-panel { margin-top: 10px; }
+}
+
+/* Compact workspace: the preview uses the remaining viewport height, not a
+   fixed aspect-ratio height. Small/zoomed screens retain reachable controls. */
+.topbar { height: 52px; padding: 0 20px; }
+.brand { font-size: 19px; }
+.brand-mark { display: block; height: 32px; width: 32px; flex: 0 0 32px; object-fit: contain; background: transparent; border-radius: 0; }
+.header-right { gap: 14px; }
+#languageToggle { min-height: 30px; padding: 6px 12px; font-size: 11px; }
+.shell { min-height: calc(100dvh - 52px); grid-template-columns: 180px minmax(0, 1fr); }
+.library { padding: 16px 12px; gap: 0; }
+.library-heading { margin: 20px 8px 10px; }
+.project-list { min-height: 0; overflow: auto; }
+.project-item strong { max-width: 115px; }
+.library .job-panel { flex-shrink: 0; }
+main { max-width: none; margin: 0; padding: 14px 18px; }
+.workspace-heading { margin: 0 0 12px; min-width: 0; }
+.project-heading { min-width: 0; }
+.workspace-heading h1 { font-size: 21px; margin: 0 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.workspace-heading p { font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.project-menu { position: relative; flex-shrink: 0; z-index: 12; }
+.project-menu summary { list-style: none; cursor: pointer; }
+.project-menu summary::-webkit-details-marker { display: none; }
+.project-menu-items { position: absolute; right: 0; top: calc(100% + 6px); min-width: 205px; padding: 6px; background: #20242c; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px #0008; }
+.project-menu-items button { display: flex; width: 100%; justify-content: flex-start; }
+.project-menu-items .danger { color: #ff9ca9; }
+.editor-grid { grid-template-columns: minmax(0, 1fr) 250px; gap: 14px; }
+.card-heading { height: 33px; min-height: 33px; padding: 0 14px; }
+.transport { padding: 8px 12px; gap: 8px; }
+.transport .time-display { font-size: 10px; min-width: 145px; }
+.transport .loop-actions .button { min-height: 30px; padding: 6px 8px; font-size: 10px; }
+.timeline-wrap { padding: 12px 20px 10px; }
+.timeline-labels { margin-bottom: 29px; }
+.timeline { height: 42px; }
+.timeline input::-webkit-slider-runnable-track { height: 42px; }
+.timeline input::-webkit-slider-thumb { height: 50px; }
+.timeline input::-moz-range-thumb { height: 50px; }
+.cue-marker::after { height: 44px; }
+.cue-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.cue-group { display: flex; align-items: center; gap: 4px; }
+.cue-actions .button { min-height: 30px; padding: 6px 9px; font-size: 11px; }
+.cue-actions output { font: 10px ui-monospace, monospace; color: var(--accent); }
+#saveCues { margin-left: auto; }
+.timeline-summary { margin-top: 8px; gap: 6px; font-size: 9px; }
+#cueSaveState { white-space: nowrap; color: var(--green); }
+#cueSaveState.dirty { color: #efc578; }
+.settings-body { display: block; padding: 12px; }
+.settings-body .field { margin-bottom: 10px; font-size: 10px; }
+.settings-body .field > span:not(#bitrateLabel) { float: none; color: inherit; font-size: inherit; }
+.settings-body .field > select, .settings-body .field > input:not([type=range]) { margin-top: 5px; padding: 7px 8px; font-size: 11px; }
+.settings-body .button { min-height: 32px; padding: 7px 9px; font-size: 11px; }
+.settings-body .hint { margin-top: 7px; font-size: 9px; line-height: 1.5; }
+.settings-separator { margin: 12px 0; }
+.settings-body .bitrate-field { margin-bottom: 12px; }
+.settings-body input[type=range] { margin-top: 10px; }
+.settings-body .export-button { margin-top: 14px; min-height: 36px; }
+.export-notes { margin-top: 9px; font-size: 10px; color: var(--muted); }
+.export-notes summary, .downloads summary { cursor: pointer; }
+.settings-body .downloads { display: block; padding: 10px; margin: 10px 0 0; border-radius: 6px; font-size: 11px; }
+.settings-body .downloads p { margin: 7px 0; font-size: 9px; line-height: 1.5; }
+.settings-body .downloads #downloadLinks { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.settings-body .downloads .button { font-size: 10px; min-height: 28px; padding: 5px 7px; margin: 0; }
+.empty-state { min-height: 0; padding: 24px; }
+.empty-state h2 { font-size: clamp(22px, 3vw, 35px); }
+.empty-state > small { line-height: 1.7; }
+@media (min-width: 900px) and (min-height: 620px) {
+  body { height: 100dvh; display: grid; grid-template-rows: 52px minmax(0, 1fr); overflow: hidden; }
+  .shell { min-height: 0; height: 100%; }
+  .library { min-height: 0; overflow: auto; }
+  .library .project-list { flex: 0 1 auto; }
+  main { min-height: 0; height: 100%; display: flex; flex-direction: column; }
+  .workspace-heading { flex: 0 0 auto; }
+  .editor, .empty-state { flex: 1; min-height: 0; }
+  .editor-grid { height: 100%; min-height: 0; align-items: stretch; }
+  .preview-card { display: flex; flex-direction: column; min-height: 0; }
+  .preview-card > :not(.video-stage) { flex-shrink: 0; }
+  .video-stage { flex: 1 1 0; min-height: 0; aspect-ratio: auto; }
+  .settings-card { display: flex; flex-direction: column; min-height: 0; }
+  .settings-body { min-height: 0; overflow: auto; scrollbar-width: thin; }
+}
+@media (min-width: 900px) and (max-height: 760px) {
+  .settings-hint { display: none; }
+  .settings-body { padding: 10px; }
+  .settings-body .field { margin-bottom: 8px; }
+  .settings-body .hint { margin-top: 5px; }
+  .settings-body .export-button { margin-top: 10px; }
+  .settings-separator { margin: 10px 0; }
+}
+@media (min-width: 900px) and (max-width: 1100px) {
+  .shell { grid-template-columns: 155px minmax(0, 1fr); }
+  .editor-grid { grid-template-columns: minmax(0, 1fr) 225px; gap: 10px; }
+  main { padding: 12px; }
+  .cue-actions { gap: 6px; }
+  .cue-group { gap: 2px; }
+  .cue-actions .button { padding-inline: 6px; }
+  .cue-actions output { font-size: 9px; }
+}
+@media (max-width: 899px), (max-height: 619px) {
+  .editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .video-stage { max-height: 50dvh; }
+  .empty-state { min-height: 380px; }
+}
+@media (max-width: 600px) {
+  .shell { display: block; }
+  .library { display: block; padding: 10px 14px; }
+  .project-list { max-height: 80px; }
+  main { padding: 14px; }
+  .brand { font-size: 17px; }
+  .header-right .engine { display: none; }
+  .workspace-heading h1 { font-size: 18px; }
+  .transport .loop-actions { justify-content: flex-start; }
+  .cue-actions { gap: 6px; }
+}

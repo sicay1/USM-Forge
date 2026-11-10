@@ -6,7 +6,7 @@ import { Transform } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { ensure, settings, cues, cueText, parseCueText, loopRange, defaultCues, Queue } from './lib/model.mjs';
+import { ensure, settings, cueText, parseCueText, loopRange, cuePair, rescaleCuePair, Queue } from './lib/model.mjs';
 import * as media from './lib/media.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +19,7 @@ for (const id of await readdir(data)) {
   if (!/^[a-f0-9-]{36}$/.test(id)) continue;
   try {
     const p = JSON.parse(await readFile(path.join(data, id, 'project.json'), 'utf8'));
+    if (p.totalFrames) Object.assign(p, cuePair(p.cues || [], p.totalFrames, p.loop));
     if (p.job && ['queued', 'running'].includes(p.job.status)) p.job = { ...p.job, status: 'failed', phase: 'Bị gián đoạn do máy chủ khởi động lại', error: 'Hãy chạy lại thao tác.' };
     projects.set(id, p);
   } catch { /* Interrupted upload has no project metadata. */ }
@@ -44,7 +45,7 @@ async function body(req) {
 async function file(req, res, target, { download, type } = {}) {
   let info; try { info = await stat(target); } catch { throw Object.assign(new Error('File chưa tồn tại.'), { status: 404 }); }
   const ext = path.extname(target);
-  const headers = { 'Content-Type': type || ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.usm': 'application/octet-stream' }[ext] || 'application/octet-stream'), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  const headers = { 'Content-Type': type || ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.usm': 'application/octet-stream' }[ext] || 'application/octet-stream'), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
   if (download) headers['Content-Disposition'] = `attachment; filename="${download}"`;
   let start = 0, end = info.size - 1, status = 200;
   if (req.headers.range) {
@@ -84,10 +85,9 @@ async function build(p, s, update, id) {
   const target = path.join(dir(p.id), buildName);
   try {
     const result = await media.prepare(path.join(dir(p.id), 'source'), target, s, p.meta, update);
-    const oldFPS = p.settings?.fps || s.fps;
-    const newCues = p.cues?.map(c => ({ ...c, frame: Math.min(result.totalFrames, Math.round(c.frame / oldFPS * s.fps)) })) || defaultCues(result.totalFrames);
+    const pair = rescaleCuePair(p, result.totalFrames, s.fps);
     // Keep prior builds until the user deletes the project; in-flight frame requests stay valid.
-    Object.assign(p, result, { build: buildName, settings: s, cues: newCues, loop: { a: 0, b: result.totalFrames } });
+    Object.assign(p, result, { build: buildName, settings: s, ...pair });
   } catch (error) { await rm(target, { recursive: true, force: true }); throw error; }
 }
 
@@ -148,8 +148,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (action === 'cues' && method === 'PUT') {
         idle(p); ready(p); const value = await body(req);
-        const list = value.text !== undefined ? parseCueText(value.text, p.settings.fps, p.totalFrames) : cues(value.cues, p.totalFrames);
-        const loop = value.loop ? loopRange(value.loop, p.totalFrames) : p.loop;
+        const { cues: list, loop } = cuePair(value.text !== undefined ? parseCueText(value.text, p.settings.fps, p.totalFrames) : value.cues, p.totalFrames);
         const s = settings({ ...p.settings, bitrate: value.bitrate ?? p.settings.bitrate, audio: value.audio ?? p.settings.audio });
         ensure(!s.audio || p.meta.audio, 'Video không có âm thanh.');
         p.cues = list; p.loop = loop; p.settings = s; await save(p); return json(res, p);
@@ -160,7 +159,7 @@ const server = http.createServer(async (req, res) => {
         const s = settings(value.settings);
         ensure(s.width === p.settings.width && s.height === p.settings.height && s.fps === p.settings.fps && value.totalFrames === p.totalFrames, 'Hãy áp dụng cùng kích thước và FPS của dự án đã lưu trước khi nhập.');
         ensure(!s.audio || p.meta.audio, 'Video không có âm thanh.');
-        const list = cues(value.cues, p.totalFrames), loop = loopRange(value.loop, p.totalFrames);
+        const { cues: list, loop } = cuePair(value.cues, p.totalFrames, value.loop);
         p.cues = list; p.loop = loop; p.settings = s; await save(p); return json(res, p);
       }
       if (action === 'project.json' && method === 'GET') {
@@ -193,7 +192,7 @@ const server = http.createServer(async (req, res) => {
         const encoder=await media.encoderStatus(); ensure(encoder.available,encoder.error || 'Encoder chưa được cấu hình.',503);
         const s = settings({ ...p.settings, bitrate: value.bitrate ?? p.settings.bitrate, audio: value.audio ?? p.settings.audio });
         ensure(!s.audio || p.meta.audio, 'Video không có âm thanh.');
-        const list = cues(value.cues ?? p.cues, p.totalFrames), loop = loopRange(value.loop ?? p.loop, p.totalFrames);
+        const { cues: list, loop } = cuePair(value.cues ?? p.cues, p.totalFrames);
         p.cues = list; p.loop = loop; p.settings = s;
         const snapshot = { schema: 'usm-studio/v1', name: p.name, settings: s, cues: list, loop, meta: p.meta, totalFrames: p.totalFrames, duration: p.duration };
         await job(p, 'export', async (update, id) => {
@@ -208,7 +207,8 @@ const server = http.createServer(async (req, res) => {
         return await file(req, res, path.join(dir(p.id), 'exports', download[1], download[2]), { download: download[2] === 'video.usm' ? 'video.usm' : download[2] });
       }
     }
-    if (['GET', 'HEAD'].includes(method) && ['/', '/app.js', '/style.css'].includes(url.pathname)) return await file(req, res, path.join(root, 'public', url.pathname === '/' ? 'index.html' : url.pathname.slice(1)));
+    const brandAsset = /^\/icons\/film-u-(?:16|32|48|64|128|180|512)\.png$/.test(url.pathname);
+    if (['GET', 'HEAD'].includes(method) && (brandAsset || ['/', '/app.js', '/i18n.js', '/style.css', '/editor.css', '/favicon.ico'].includes(url.pathname))) return await file(req, res, path.join(root, 'public', url.pathname === '/' ? 'index.html' : url.pathname.slice(1)));
     json(res, { error: 'Không tìm thấy.' }, 404);
   } catch (error) {
     if (res.headersSent || res.destroyed) return;
