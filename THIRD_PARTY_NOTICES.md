@@ -53,4 +53,4 @@ Their installed packages contain the relevant notices. No `node_modules` directo
 
 The legacy Windows adapter can call a separately installed Medianoche encoder via `ENCODER_PATH`. No encoder, DLL, SDK, or right to obtain or redistribute one is provided. Users of that adapter must have appropriate rights under their own applicable terms. The Linux native image does not require it.
 
-Users retain responsibility for rights to their input media. No game assets, user uploads, generated game-background samples, fonts, or official logos are bundled. Example videos used by the public smoke tests are generated locally from FFmpeg test patterns and a sine wave.
+Users retain responsibility for rights to their input media. The documentation screenshot at `docs/screenshots/editor.png` shows user-provided game imagery to illustrate the editor; that imagery belongs to its respective rights holders and is not covered by the project's MIT license. No source game videos, private project uploads, generated game-background samples, fonts, or official logos are bundled. Example videos used by the public smoke tests are generated locally from FFmpeg test patterns and a sine wave.
