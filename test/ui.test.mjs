@@ -229,7 +229,7 @@ test('saved English preference translates job progress, empty state and every an
     assert.equal($('jobPhase').textContent,'Normalizing video');
     assert.equal($('jobProgress').value,65);
     assert.equal($('languageToggle').textContent,'Tiếng Việt');
-    assert.equal($('newProject').textContent,'＋ Upload video');
+    assert.equal($('newProject').textContent,'＋ Upload video / USM');
     assert.equal($('setA').disabled,true);
     for (const element of window.document.querySelectorAll('*')) for (const attr of element.attributes) {
       if (attr.name.startsWith('data-i18n') && attr.value) assert.ok(window.USMI18n.has(attr.value),`Missing English: ${attr.value}`);
@@ -238,7 +238,7 @@ test('saved English preference translates job progress, empty state and every an
   } finally {await window.happyDOM.close();}
   const empty=await setup({}, {language:'en',restore:false});
   try {
-    assert.equal(empty.$('projectTitle').textContent,'From video to USM.');
+    assert.equal(empty.$('projectTitle').textContent,'Video ↔ USM.');
     assert.equal(empty.$('emptyState').hidden,false);
     assert.equal(empty.$('setB').disabled,true);
   } finally {await empty.window.happyDOM.close();}
@@ -322,6 +322,52 @@ function pendingFrames(window) {
 }
 const frameResponse=window=>({ok:true,blob:async()=>new window.Blob(['frame'])});
 const debounceWait=()=>new Promise(resolve=>setTimeout(resolve,220));
+
+test('reverse conversion is only offered for detected USM, not filename extensions', async () => {
+  const ordinary = await setup({name:'fake.usm'});
+  try { assert.equal(ordinary.$('usmConversion').hidden, true); assert.equal(ordinary.$('convert').disabled, true); }
+  finally { await ordinary.window.happyDOM.close(); }
+  const {window,$} = await setup({meta:{format:'usm',width:320,height:180,codec:'mpeg1video',size:10000,audio:false}});
+  try {
+    assert.equal($('usmConversion').hidden, false); assert.equal($('convert').disabled, false);
+    assert.equal($('convertAudio').disabled, true); assert.equal($('convertAudio').checked, false);
+    $('languageToggle').click(); assert.equal($('convert').textContent, '↗ Convert USM to video');
+  } finally { await window.happyDOM.close(); }
+});
+
+test('conversion uses separate options and preserves unsaved A/B and USM settings', async () => {
+  const {window,$,p,calls,flush} = await setup({meta:{format:'usm',width:320,height:180,codec:'mpeg1video',size:10000,audio:true}});
+  try {
+    $('width').value='640'; $('markerA').dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight'}));
+    $('convertFormat').value='avi'; $('convertExtract').checked=false;
+    p.job={status:'running',type:'convert',phase:'Tách luồng và chuyển USM sang video',progress:10};
+    $('convert').click(); await flush();
+    const sent=calls.find(c=>c.url.endsWith('/convert'));
+    assert.deepEqual(JSON.parse(sent.options.body), {format:'avi',audio:true,extract:false});
+    assert.equal($('width').value,'640'); assert.equal($('markerA').getAttribute('aria-valuenow'),'16');
+    assert.match($('cueSaveState').textContent,/chưa lưu/);
+    for (const id of ['convert','convertFormat','convertAudio','convertExtract','export','deleteProject']) assert.equal($(id).disabled,true);
+  } finally { await window.happyDOM.close(); }
+});
+
+test('completed conversion displays only generated downloads and survives project selection', async () => {
+  const result={id:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',format:'mp4',files:['video.mp4','video.m1v','verification.json'],size:20000,width:320,height:180,frames:25};
+  const {window,$,p,flush}=await setup({meta:{format:'usm',width:320,height:180,codec:'mpeg1video',size:10000,audio:false},conversions:[result]}, {language:'en'});
+  try {
+    assert.equal($('conversionDownloads').hidden,false); assert.equal($('downloads').hidden,true);
+    const links=[...$('conversionLinks').querySelectorAll('a')];
+    assert.equal(links.length,3); assert.ok(links[0].href.endsWith(`/conversions/${result.id}/video.mp4`));
+    assert.match($('conversionInfo').textContent,/320 × 180 · 25 frames/);
+    p.job={status:'done',type:'convert',progress:100}; $('convert').click(); await flush();
+    assert.equal($('conversionDownloads').open,true); assert.equal($('toast').textContent,'Your video is ready to download.');
+  } finally { await window.happyDOM.close(); }
+});
+
+test('conversion remains usable after preview failure without requiring a master', async () => {
+  const {window,$}=await setup({build:null,settings:null,duration:0,totalFrames:0,meta:{format:'usm',width:320,height:180,codec:'mpeg1video',size:10000,audio:true},job:{status:'failed',type:'prepare',progress:0,error:'preview failed'}});
+  try { assert.equal($('convert').disabled,false,$('toast').textContent); assert.equal($('export').disabled,true); assert.equal($('convertAudio').checked,true); }
+  finally { await window.happyDOM.close(); }
+});
 
 test('scrubbing shows loading immediately and waits for image decoding, with live translation',async()=>{
   const {window,$,flush}=await setup();

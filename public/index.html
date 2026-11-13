@@ -15,7 +15,7 @@
   </header>
   <div class="shell">
     <aside class="library">
-      <button class="new-project" id="newProject" data-i18n="＋ Tải video lên">＋ Tải video lên</button>
+      <button class="new-project" id="newProject" data-i18n="＋ Tải video / USM">＋ Tải video / USM</button>
       <div class="library-heading"><span data-i18n="Dự án">Dự án</span><span id="projectCount">0</span></div>
       <div id="projectList" class="project-list"></div>
       <section id="jobPanel" class="job-panel" data-i18n-aria-label="Tiến độ video" aria-live="polite" hidden>
@@ -25,7 +25,7 @@
     </aside>
     <main>
       <div class="workspace-heading">
-        <div class="project-heading"><h1 id="projectTitle" data-i18n="Từ video đến USM.">Từ video đến USM.</h1><p id="projectSubtitle" data-i18n="Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.">Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.</p></div>
+        <div class="project-heading"><h1 id="projectTitle" data-i18n="Video ↔ USM.">Video ↔ USM.</h1><p id="projectSubtitle" data-i18n="Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.">Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.</p></div>
         <details class="project-menu"><summary class="button secondary" data-i18n="Dự án ▾">Dự án ▾</summary><div class="project-menu-items">
           <button id="saveProject" class="button subtle" data-i18n="↓ Lưu dự án" disabled>↓ Lưu dự án</button>
           <button id="importProject" class="button subtle" data-i18n="Mở dự án .json" disabled>Mở dự án .json</button>
@@ -37,8 +37,8 @@
       <div id="emptyState" class="empty-state">
         <div class="upload-orbit"><div class="upload-symbol">↥</div><span class="orbit-dot"></span></div>
         <h2 data-i18n="Video của bạn. Vòng lặp của bạn.">Video của bạn. Vòng lặp của bạn.</h2>
-        <p data-i18n="Kéo video vào đây, hoặc chọn từ máy.">Kéo video vào đây, hoặc chọn từ máy.</p>
-        <button id="chooseFile" class="button primary" data-i18n="＋ Chọn video">＋ Chọn video</button><small id="uploadHint">MP4 · WEBM · MOV · MKV · AVI · USM</small>
+        <p data-i18n="Kéo video hoặc USM vào đây. Xuất USM, MP4 hoặc AVI.">Kéo video hoặc USM vào đây. Xuất USM, MP4 hoặc AVI.</p>
+        <button id="chooseFile" class="button primary" data-i18n="＋ Chọn video / USM">＋ Chọn video / USM</button><small id="uploadHint">MP4 · WEBM · MOV · MKV · AVI · USM</small>
       </div>
       <div id="editor" class="editor" hidden>
         <div class="editor-grid">
@@ -65,6 +65,18 @@
           <aside class="settings-card">
             <div class="card-heading"><span data-i18n="CẤU HÌNH XUẤT">CẤU HÌNH XUẤT</span><span class="pill accent">.USM</span></div>
             <div class="settings-body">
+              <section id="usmConversion" class="usm-conversion" hidden aria-labelledby="conversionTitle">
+                <h2 id="conversionTitle" data-i18n="USM → Video">USM → Video</h2>
+                <p class="hint" data-i18n="Chuyển toàn bộ USM gốc, giữ FPS và kích thước nguồn. Không dùng cấu hình USM hay mốc A/B bên dưới.">Chuyển toàn bộ USM gốc, giữ FPS và kích thước nguồn. Không dùng cấu hình USM hay mốc A/B bên dưới.</p>
+                <label class="field"><span data-i18n="Định dạng video">Định dạng video</span><select id="convertFormat"><option value="mp4">MP4 · H.264 / AAC</option><option value="avi">AVI · MPEG-4 / PCM</option></select></label>
+                <label class="check-field"><input id="convertAudio" type="checkbox" checked><span data-i18n="Giữ âm thanh">Giữ âm thanh</span></label>
+                <p class="hint" id="convertAudioHint"></p>
+                <label class="check-field"><input id="convertExtract" type="checkbox" checked><span data-i18n="Kèm file tách gốc / WAV">Kèm file tách gốc / WAV</span></label>
+                <p class="hint" data-i18n="MPEG-1 → .m1v, MPEG-2 → .m2v; âm thanh ADX → .adx và .wav. Dùng luồng hình/âm thanh đầu tiên.">MPEG-1 → .m1v, MPEG-2 → .m2v; âm thanh ADX → .adx và .wav. Dùng luồng hình/âm thanh đầu tiên.</p>
+                <button id="convert" class="button primary wide" data-i18n="↗ Chuyển USM sang video">↗ Chuyển USM sang video</button>
+                <details id="conversionDownloads" class="downloads" hidden><summary data-i18n="Video đã sẵn sàng">Video đã sẵn sàng</summary><p id="conversionInfo"></p><div id="conversionLinks"></div></details>
+                <div class="settings-separator"></div>
+              </section>
               <label class="field"><span data-i18n="Độ phân giải">Độ phân giải</span><select id="resolution"><option value="1920x1080">1920 × 1080 · Full HD</option><option value="1280x720">1280 × 720 · HD</option><option value="2560x1600">2560 × 1600 · L2 login</option><option value="custom" data-i18n="Tùy chỉnh">Tùy chỉnh</option></select></label>
               <div class="two-fields"><label class="field"><span data-i18n="Rộng">Rộng</span><input id="width" type="number" min="64" max="4094" step="2" value="1920"></label><label class="field"><span data-i18n="Cao">Cao</span><input id="height" type="number" min="64" max="2160" step="2" value="1080"></label></div>
               <label class="field"><span data-i18n="Tốc độ khung hình">Tốc độ khung hình</span><select id="fps"><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label>

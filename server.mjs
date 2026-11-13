@@ -8,12 +8,14 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { ensure, settings, cueText, parseCueText, loopRange, cuePair, rescaleCuePair, Queue } from './lib/model.mjs';
 import * as media from './lib/media.mjs';
-import { createRequestGuard } from './lib/http-security.mjs';
+import { createRequestGuard, contentType } from './lib/http-security.mjs';
+import { conversionOptions, conversionFiles } from './lib/conversion.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const data = path.resolve(process.env.DATA_DIR || path.join(root, 'data'));
 const maxUpload = Number(process.env.MAX_UPLOAD_MB || 512) * 1024 * 1024;
 const projects = new Map(), queue = new Queue(1), previews = new Queue(1);
+let submittingJobs = 0;
 const port = Number(process.env.PORT || 3210), host = process.env.HOST || '127.0.0.1';
 const guardRequest = createRequestGuard(process.env.ALLOWED_HOSTS);
 await mkdir(data, { recursive: true });
@@ -21,6 +23,8 @@ for (const id of await readdir(data)) {
   if (!/^[a-f0-9-]{36}$/.test(id)) continue;
   try {
     const p = JSON.parse(await readFile(path.join(data, id, 'project.json'), 'utf8'));
+    // Older projects did not store the input container. Detect USM without trusting its filename.
+    if (p.meta && !p.meta.format && await media.isUsm(path.join(data, id, 'source')).catch(() => false)) p.meta.format = 'usm';
     if (p.totalFrames) Object.assign(p, cuePair(p.cues || [], p.totalFrames, p.loop));
     if (p.job && ['queued', 'running'].includes(p.job.status)) p.job = { ...p.job, status: 'failed', phase: 'Bị gián đoạn do máy chủ khởi động lại', error: 'Hãy chạy lại thao tác.' };
     projects.set(id, p);
@@ -38,16 +42,23 @@ async function save(p) {
 function get(id) { const p = projects.get(id); ensure(p, 'Không tìm thấy dự án.', 404); return p; }
 function idle(p) { ensure(!p.job || !['queued', 'running'].includes(p.job.status), 'Dự án đang xử lý, vui lòng đợi.', 409); }
 function ready(p) { ensure(p.build && p.totalFrames, 'Video chưa sẵn sàng.', 409); }
-function json(res, value, status = 200) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); }
+function json(res, value, status = 200) {
+  // Rejections may happen before consuming a request body. Never reuse that socket.
+  if (status >= 400) res.setHeader('Connection', 'close');
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value));
+}
 async function body(req) {
   let size = 0; const chunks = [];
   for await (const chunk of req) { size += chunk.length; ensure(size <= 256000, 'Dữ liệu yêu cầu quá lớn.', 413); chunks.push(chunk); }
-  try { return JSON.parse(Buffer.concat(chunks).toString()); } catch { throw Object.assign(new Error('JSON không hợp lệ.'), { status: 400 }); }
+  let value;
+  try { value = JSON.parse(Buffer.concat(chunks).toString()); } catch { throw Object.assign(new Error('JSON không hợp lệ.'), { status: 400 }); }
+  ensure(value && typeof value === 'object' && !Array.isArray(value), 'JSON cần là một object.');
+  return value;
 }
 async function file(req, res, target, { download, type } = {}) {
   let info; try { info = await stat(target); } catch { throw Object.assign(new Error('File chưa tồn tại.'), { status: 404 }); }
   const ext = path.extname(target);
-  const headers = { 'Content-Type': type || ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.usm': 'application/octet-stream' }[ext] || 'application/octet-stream'), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  const headers = { 'Content-Type': type || ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4', '.avi': 'video/x-msvideo', '.wav': 'audio/wav', '.jpg': 'image/jpeg', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.usm': 'application/octet-stream' }[ext] || 'application/octet-stream'), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
   if (download) headers['Content-Disposition'] = `attachment; filename="${download}"`;
   let start = 0, end = info.size - 1, status = 200;
   if (req.headers.range) {
@@ -66,8 +77,15 @@ async function file(req, res, target, { download, type } = {}) {
 
 async function job(p, type, task) {
   idle(p);
+  ensure(queue.pending.length + submittingJobs < 10, 'Hàng đợi đầy, hãy thử lại sau.', 429);
   const current = { id: randomUUID(), type, status: 'queued', phase: 'Đang chờ xử lý', progress: 0, started: new Date().toISOString() };
-  p.job = current; await save(p);
+  p.job = current;
+  // Reserve admission across the metadata write; concurrent requests cannot all
+  // observe an empty queue and bypass the cap before they actually enqueue.
+  submittingJobs++;
+  try { await save(p); }
+  catch (error) { current.status = 'failed'; current.error = error.message; throw error; }
+  finally { submittingJobs--; }
   queue.add(async () => {
     current.status = 'running'; await save(p);
     try {
@@ -96,18 +114,21 @@ async function build(p, s, update, id) {
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'");
   try {
     guardRequest(req);
     const url = new URL(req.url, 'http://localhost');
     const method = req.method;
+    if (url.pathname.startsWith('/api/')) ensure(req.headers['sec-fetch-site'] !== 'cross-site', 'Yêu cầu khác nguồn bị từ chối.', 403);
     if (!['GET', 'HEAD'].includes(method)) {
-      if (url.pathname !== '/api/projects') ensure((req.headers['content-type'] || '').startsWith('application/json'), 'Yêu cầu cần dùng JSON.', 415);
+      if (url.pathname !== '/api/projects') ensure(contentType(req) === 'application/json', 'Yêu cầu cần dùng JSON.', 415);
     }
     if (url.pathname === '/api/health' && method === 'GET') { const encoder=await media.encoderStatus(); return json(res, { name:'USM Forge',version:'0.2.0',encoder:encoder.available,encoderInfo:encoder,platform:process.platform,maxUploadMB:maxUpload/1024/1024,queue:queue.pending.length,active:queue.active }); }
     if (url.pathname === '/api/projects' && method === 'GET') return json(res, [...projects.values()].sort((a, b) => b.updated.localeCompare(a.updated)));
     if (url.pathname === '/api/projects' && method === 'POST') {
-      ensure((req.headers['content-type'] || '').startsWith('application/octet-stream'), 'Upload cần là luồng file video.', 415);
+      ensure(contentType(req) === 'application/octet-stream', 'Upload cần là luồng file video.', 415);
       ensure(Number(req.headers['content-length'] || 0) <= maxUpload, 'File vượt giới hạn dung lượng.', 413);
       ensure(queue.pending.length < 10, 'Hàng đợi đầy, hãy thử lại sau.', 429);
       let name; try { name = decodeURIComponent(req.headers['x-file-name'] || 'video'); } catch { name = 'video'; }
@@ -202,6 +223,25 @@ const server = http.createServer(async (req, res) => {
           p.exports.unshift({ id, date: new Date().toISOString(), ...result, settings: s });
         });
         return json(res, p, 202);
+      }
+      if (action === 'convert' && method === 'POST') {
+        idle(p);
+        const options = conversionOptions(await body(req));
+        ensure(p.meta?.format === 'usm', 'Tính năng này cần file nguồn USM. Hãy tải file .usm lên.');
+        ensure(queue.pending.length < 10, 'Hàng đợi đầy, hãy thử lại sau.', 429);
+        // Independent of the USM encoder, master settings and A/B edits (even if preview failed).
+        await job(p, 'convert', async (update, id) => {
+          const result = await media.convertUsm(path.join(dir(p.id), 'source'), path.join(dir(p.id), 'conversions', id), options, update);
+          p.conversions ??= [];
+          p.conversions.unshift({ id, date: new Date().toISOString(), ...result });
+        });
+        return json(res, p, 202);
+      }
+      const converted = /^conversions\/([a-f0-9-]{36})\/([^/]+)$/.exec(action);
+      if (converted && ['GET', 'HEAD'].includes(method)) {
+        const result = p.conversions?.find(item => item.id === converted[1]);
+        ensure(conversionFiles.test(converted[2]) && result?.files.includes(converted[2]), 'Bản xuất chưa hoàn tất.', 404);
+        return await file(req, res, path.join(dir(p.id), 'conversions', converted[1], converted[2]), { download: converted[2] });
       }
       const download = /^exports\/([a-f0-9-]{36})\/(video\.usm|cue_point\.txt|project\.json|verification\.json)$/.exec(action);
       if (download && ['GET', 'HEAD'].includes(method)) {

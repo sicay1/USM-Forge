@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readUtf,writeUtf,readChunks,makeChunk,cueMetadata,embedCues,inspectUsm} from '../lib/usm.mjs';
+import {readUtf,writeUtf,readChunks,makeChunk,cueMetadata,embedCues,inspectUsm,extractUsmAdx} from '../lib/usm.mjs';
+import { mkdtemp, writeFile, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 // CUEPOINT_INFO bytes from a Medianoche 1.88 output generated for the test video.
 const reference=Buffer.from('40555446000000e00000002c0000007c000000b00000000700040014000000045b00000015560000001a550000001f1b000000280000000000000007000000000000000000000000000000080000000c00000000000001f400000001000000180000000c00000000000019640000000200000028000000050000000000001b58000000003c4e554c4c3e00435545504f494e545f494e464f006e616d650074696d65006375655f7479706500706172616d6574657200000073746172740000006c6f6f705f706f696e740000000000006c6f6f705f7374617274000000000000656e640000000000','hex');
@@ -52,4 +55,36 @@ test('reject corrupted seek offset, truncated chunks and invalid UTF offsets',()
 test('100 cue points, maximum names and repeated IDs remain readable',()=>{
   const list=Array.from({length:100},(_,i)=>({name:`cue_${i}_`.padEnd(64,'x'),id:65535,frame:i%4})).sort((a,b)=>a.frame-b.frame);
   const result=Buffer.concat(embedCues(fixture(),list,30));const info=inspectUsm(result);assert.equal(info.cues.length,100);assert.equal(info.cues[99].name.length,64);assert.equal(info.cues[99].id,65535);
+});
+
+test('streaming ADX extraction keeps the complete header and first audio channel, not metadata/padding',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'usm-adx-test-'));
+  try {
+    const source=path.join(dir,'input'), target=path.join(dir,'audio.adx');
+    const adx=Buffer.alloc(36);adx.writeUInt16BE(0x8000,0);adx.writeUInt16BE(32,2);
+    const audio=Buffer.alloc(150000,0x6a);
+    const bytes=Buffer.concat([makeChunk('CRID',1,Buffer.from('metadata')),
+      makeChunk('@SFA',1,Buffer.from('metadata'),{channel:9}),makeChunk('@SFA',0,adx,{channel:9}),
+      makeChunk('@SFA',0,Buffer.from('other audio'),{channel:0}),makeChunk('@SFV',0,Buffer.from('video')),
+      makeChunk('@SFA',0,audio,{channel:9}),makeChunk('@SFA',2,Buffer.from('#CONTENTS END'),{channel:9})]);
+    await writeFile(source,bytes);
+    const result=await extractUsmAdx(source,target);assert.equal(result.channel,9);
+    assert.deepEqual(await readFile(target),Buffer.concat([adx,audio]));
+    assert.deepEqual(await readFile(source),bytes);
+    await assert.rejects(extractUsmAdx(source,target),/EEXIST/);
+    assert.deepEqual(await readFile(target),Buffer.concat([adx,audio]),'existing targets must never be removed');
+  } finally {await rm(dir,{recursive:true,force:true});}
+});
+
+test('ADX extraction rejects malformed chunks/headers and removes partial output',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'usm-adx-test-'));
+  try {
+    const source=path.join(dir,'input'), target=path.join(dir,'audio.adx');
+    const adx=Buffer.alloc(36);adx.writeUInt16BE(0x8000,0);
+    const root=makeChunk('CRID',1,Buffer.from('metadata')), valid=makeChunk('@SFA',0,adx);
+    for(const bytes of [Buffer.concat([root,valid,Buffer.alloc(3)]),Buffer.concat([root,valid.subarray(0,-1)]),Buffer.concat([root,makeChunk('@SFA',0,Buffer.from('bad header'))]),root]) {
+      await writeFile(source,bytes);await assert.rejects(extractUsmAdx(source,target));
+      await assert.rejects(stat(target),{code:'ENOENT'});
+    }
+  } finally {await rm(dir,{recursive:true,force:true});}
 });

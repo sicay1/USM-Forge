@@ -115,6 +115,10 @@ main { max-width: none; margin: 0; padding: 14px 18px; }
 .settings-body .downloads { display: block; padding: 10px; margin: 10px 0 0; border-radius: 6px; font-size: 11px; }
 .settings-body .downloads p { margin: 7px 0; font-size: 9px; line-height: 1.5; }
 .settings-body .downloads #downloadLinks { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.settings-body .downloads #conversionLinks { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.usm-conversion h2 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
+.usm-conversion .check-field { margin-top: 10px; font-size: 11px; }
+.usm-conversion > .button { margin-top: 10px; }
 .settings-body .downloads .button { font-size: 10px; min-height: 28px; padding: 5px 7px; margin: 0; }
 .empty-state { min-height: 0; padding: 24px; }
 .empty-state h2 { font-size: clamp(22px, 3vw, 35px); }

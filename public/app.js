@@ -32,6 +32,10 @@ function setControls() {
   const ready = Boolean(project?.build), locked = busy || uploading || !ready;
   for (const id of ['prevFrame','nextFrame','play','scrub','loopPlay','introPlay','seamPlay','normalPlay','markerA','markerB','setA','goToA','setB','goToB','resolution','width','height','fps','bitrate','applySettings','audio','export','saveProject','saveCues','importCue','importProject','downloadCue','fullScreen']) $(id).disabled = locked;
   if (!locked) $('audio').disabled = !project.meta.audio;
+  const convertible = project?.meta?.format === 'usm';
+  $('usmConversion').hidden = !convertible;
+  for (const id of ['convert','convertFormat','convertAudio','convertExtract']) $(id).disabled = busy || uploading || !convertible;
+  if (convertible && !project.meta.audio) $('convertAudio').disabled = true;
   for (const id of ['loopPlay','introPlay','seamPlay']) $(id).disabled = locked || !hasLoop();
   // Seam playback uses a different timebase, so it cannot set a source cue.
   $('setA').disabled = $('setB').disabled = locked || mode === 'seam';
@@ -53,6 +57,8 @@ function refreshHeader() {
   $('emptyState').hidden = true; $('editor').hidden = false;
 }
 function syncSettings() {
+  $('convertAudio').checked = Boolean(project.meta?.audio);
+  label('convertAudioHint', project.meta?.audio ? 'Giữ luồng âm thanh đầu tiên của USM gốc.' : 'Video nguồn không có âm thanh.');
   if (!project.settings) return;
   for (const key of ['width','height','fps']) $(key).value = String(project.settings[key]);
   const res = `${project.settings.width}x${project.settings.height}`;
@@ -140,6 +146,13 @@ for (const [index, name] of ['A','B'].entries()) {
   };
 }
 function renderDownloads() {
+  const converted = project.conversions?.[0];
+  $('conversionDownloads').hidden = !converted;
+  if (converted) {
+    label('conversionInfo', '{size} MB · {width} × {height} · {frames} frames · Đã kiểm tra giải mã', { size:(converted.size / 1024 / 1024).toFixed(2), width:converted.width, height:converted.height, frames:converted.frames });
+    $('conversionLinks').innerHTML = converted.files.map((name, index) => `<a class="button ${index ? 'secondary' : 'primary'}" href="${endpoint(`conversions/${converted.id}/${encodeURIComponent(name)}`)}">↓ ${escape(name)}</a>`).join('');
+    window.USMI18n.apply();
+  }
   const out = project.exports?.[0]; $('downloads').hidden = !out;
   if (!out) return;
   label('downloadInfo', '{size} MB · {width} × {height} · {frames} frames · Đã kiểm tra giải mã', { size:(out.size / 1024 / 1024).toFixed(2), width:out.settings.width, height:out.settings.height, frames:out.frames });
@@ -181,6 +194,7 @@ async function completedJob() {
   if (project.job.type === 'prepare') { draft = structuredClone(project.cues); markSaved(); syncSettings(); basePreview(); renderCues(project.loop); }
   if (project.job.type === 'seam' && project.seam?.build === project.build) { mode = 'seam'; video.src = project.seam.url; video.loop = true; $('frameImage').hidden = true; label('previewMode', 'ĐOẠN NỐI B → A'); setControls(); await video.play().catch(() => toast('Đoạn nối sẵn sàng. Bấm phát để xem.')); }
   if (project.job.type === 'export') { renderDownloads(); $('downloads').open = true; toast('File USM đã sẵn sàng để tải xuống.'); }
+  if (project.job.type === 'convert') { renderDownloads(); $('conversionDownloads').open = true; toast('Video đã sẵn sàng để tải xuống.'); }
   await library();
 }
 async function takeJob(next) { cancelFrameLoad(); project = next; video.pause(); renderJob(); if (next.job?.status === 'done') await completedJob(); else if (busy) schedulePoll(); }
@@ -301,7 +315,7 @@ $('deleteProject').onclick = safely(async () => {
   await api(`/api/projects/${project.id}`, { method:'DELETE', body:'{}' });
   clearTimeout(pollTimer); video.pause(); cancelFrameLoad(); project = null; markSaved(); localStorage.removeItem('usm-project');
   $('editor').hidden = true; $('emptyState').hidden = false; $('jobPanel').hidden = true;
-  label('projectTitle', 'Từ video đến USM.'); label('projectSubtitle', 'Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.');
+  label('projectTitle', 'Video ↔ USM.'); label('projectSubtitle', 'Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.');
   busy = false; setControls(); await library(); toast('Đã xóa dự án.');
 });
 $('importCue').onclick = () => $('cueInput').click();
@@ -309,6 +323,10 @@ $('cueInput').onchange = safely(async event => { const file = event.target.files
 $('importProject').onclick = () => $('projectInput').click();
 $('projectInput').onchange = safely(async event => { const file = event.target.files[0]; if (!file) return; const next = await api(endpoint('restore'), { method:'POST', body:await file.text() }); project = next; draft = structuredClone(next.cues); basePreview(); syncSettings(); markSaved(); renderCues(next.loop); $('projectInput').value=''; toast('Đã khôi phục cấu hình và cue point.'); });
 $('export').onclick = safely(async () => { if (!preparedMatches()) throw new Error('Bấm “Áp dụng & tạo lại preview” để dùng kích thước hoặc FPS mới trước khi xuất.'); const s = outputSettings(); const next = await api(endpoint('export'), { method:'POST', body:JSON.stringify({ bitrate:s.bitrate, audio:s.audio, cues:draft, loop:getLoop() }) }); markSaved(); await takeJob(next); });
+$('convert').onclick = safely(async () => {
+  const options = { format:$('convertFormat').value, audio:$('convertAudio').checked, extract:$('convertExtract').checked };
+  await takeJob(await api(endpoint('convert'), { method:'POST', body:JSON.stringify(options) }));
+});
 window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue=''; } });
 const projectMenu = document.querySelector('.project-menu');
 projectMenu.addEventListener('click', event => { if (event.target.closest('button')) projectMenu.open = false; });

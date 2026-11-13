@@ -1,8 +1,8 @@
 # USM Forge
 
-**Convert videos to USM. Set A/B cue points. Preview loops.**
+**Convert video ↔ USM. Set A/B cue points. Preview loops.**
 
-A local web app for converting common video formats to CRI USM, with frame-by-frame inspection, cue-point editing, and loop preview before export. The Linux container runs the whole pipeline using FFmpeg and CriCodecs. No Wine or proprietary Windows encoder is required.
+A local web app for converting common video formats to CRI USM and converting readable USM files back to MP4/AVI, with frame-by-frame inspection, cue-point editing, and loop preview before export. The Linux container runs the whole pipeline using FFmpeg and CriCodecs. No Wine or proprietary Windows encoder is required.
 
 The interface supports **English and Vietnamese**. Use the language button in the top-right corner to switch; your choice is remembered in this browser. This is an independent community project, not an official CRIWARE or Lineage II tool.
 
@@ -19,6 +19,7 @@ The interface supports **English and Vietnamese**. Use the language button in th
 - Preview A–B loops, intro-then-loop playback, and a rendered clip across the loop boundary.
 - Export MPEG-1 video with optional stereo ADX audio in a USM container, with cue points embedded.
 - Download USM, cue text, project JSON, and a structural/decoder verification report from the native encoder.
+- Convert uploaded USM back to MP4 (H.264/AAC) or AVI (MPEG-4/PCM), with optional original MPEG video, ADX and WAV downloads.
 - Compact desktop layout with English/Vietnamese switching; smaller screens can scroll to keep all controls accessible.
 
 ## Quick start
@@ -70,6 +71,22 @@ This repository supplies source and local build instructions. It does not advert
 The **Project / Dự án** menu contains project JSON save/restore, A/B text import/download, and project deletion. It closes when you select an action, click outside, or press Escape. Deleting a project removes its uploaded copy, previews and exports, not the original file on your computer.
 
 The loop controls simulate the interval you select. They do not infer game behavior from names such as `loop_point`. Actual cue handling is up to the game client.
+
+## Converting USM back to video
+
+1. Use **Upload video / USM** to upload a `.usm` file. Detection uses its contents, not the extension.
+2. In **USM → Video**, choose **MP4** (H.264, CRF 18 / AAC 192 kbps) or **AVI** (MPEG-4, 16 Mbps / PCM 16-bit, 44.1 kHz).
+3. Leave **Keep audio** enabled to use the first audio track, or disable it for a silent video. USMs without audio work too.
+4. Optionally keep **Include extracted streams / WAV** enabled. MPEG-1 sources produce `video.m1v`; MPEG-2 sources produce `video.m2v`. ADX audio is extracted with its original header and compressed payload to `audio.adx`; readable audio is also decoded to `audio.wav` (PCM 16-bit, 44.1 kHz). Audio files are omitted when **Keep audio** is off. Other source video/audio codecs may convert, but do not receive MPEG/ADX raw downloads.
+5. Click **Convert USM to video**. Follow sidebar progress, then expand **Video is ready** to download the video, optional extracted files and `verification.json`.
+
+This path reads the **entire original USM**, not the normalized master or lower-resolution browser preview. It preserves the original frame rate and frame count; source dimensions are retained (odd dimensions are padded by one pixel for encoder compatibility). A/B markers, the USM bitrate slider and preview resolution/FPS do not affect it. MP4/AVI are re-encoded, not lossless recovery of the video before it became USM; the extracted MPEG/ADX streams preserve the existing compressed data. Only the first video and first audio stream are used; cue, alpha and subtitle streams are not exported.
+
+Conversion requires FFmpeg/FFprobe with the [USM demuxer](https://ffmpeg.org/doxygen/trunk/usmdec_8c_source.html), H.264/MPEG-4 encoding, and decoders for the source streams. It does **not** require CriCodecs, Medianoche or UsmDemuxer.exe. No external demuxer binary/source is bundled. Encrypted USM and codecs unsupported by the installed FFmpeg build are not supported; no decryption keys are requested or used. Conversion cannot repair a corrupt or incompletely decoded USM.
+
+Outputs are verified for decoded video frame count, frame rate, dimensions and audio presence before download links become available. Conversion uses the existing serial job queue and retains completed results with the project; failed attempts do not replace previous results. Deleting the project also deletes its conversion files. The 256 MiB native **mux** budget does not apply to conversion; uploads/duration remain bounded and free disk space is checked before writing outputs.
+
+API: `POST /api/projects/:id/convert` with JSON `{"format":"mp4","audio":true,"extract":true}` (all fields optional). Poll the existing project endpoint for `job`; successful results are in `conversions`, with downloads at `/api/projects/:id/conversions/:conversionId/:filename`. This does not modify cues or USM export settings. Older saved USM projects are detected when the server restarts.
 
 ## Cue and project files
 
@@ -125,6 +142,8 @@ For a directly configured development environment, `npm start` defaults to `http
 Use `localhost`, `127.0.0.1`, or `[::1]` in the browser URL. Host and Origin checks protect the local API from requests addressed to untrusted domains. Custom hostnames require an explicit `ALLOWED_HOSTS` list; see [SECURITY.md](SECURITY.md). Changing the listening `HOST` does not automatically trust additional names.
 
 `scripts/native-matrix.mjs` checks native encoding at all five supported frame rates in a configured Linux environment. Generated files stay in ignored `test-output/`; no sample game footage is needed.
+
+Run `node scripts/smoke-convert.mjs` for a self-contained reverse-conversion check. It requires only Node, FFmpeg and FFprobe on PATH (or the path variables above), creates synthetic MPEG-1/MPEG-2 + ADX USMs, and starts/stops its own isolated local server with the USM encoder deliberately unavailable. It checks MP4/AVI, silent/audio sources, fractional FPS, B-frames, bit-exact MPEG/ADX extraction, WAV decoding, mute/extraction options, job locking, failed partial-decode handling and download restrictions. Test artifacts remain under `test-output/convert-*` for inspection.
 
 An optional legacy Windows adapter remains in the source: set `USM_BACKEND=medianoche` and `ENCODER_PATH` to your own legally obtained encoder, plus FFmpeg/FFprobe as needed. No proprietary executable or SDK is supplied. The default Linux backend is native; this optional adapter is not required for the container.
 
