@@ -4,6 +4,12 @@ let project = null, draft = [], dirty = false, busy = false, currentFrame = 0, m
 let wholeVideo = false;
 let seekTimer, frameController;
 const video = $('video');
+const projectMenu = document.querySelector('.project-menu');
+const playbackLabels = { normal:'XEM TRƯỚC', loop:'LẶP A → B', intro:'INTRO → LOOP', seam:'ĐOẠN NỐI B → A' };
+function setPreviewMode(next, caption = playbackLabels[next]) {
+  mode = next;
+  label('previewMode', caption);
+}
 function setFrameLoading(loading) {
   $('frameLoading').hidden = !loading;
   video.parentElement.setAttribute('aria-busy', String(loading));
@@ -41,17 +47,34 @@ function setControls() {
   $('setA').disabled = $('setB').disabled = locked || mode === 'seam';
   $('newProject').disabled = uploading;
   $('deleteProject').disabled = busy || uploading || !project;
-  document.querySelectorAll('.project-item').forEach(el => el.disabled = uploading);
+  document.querySelectorAll('.project-select').forEach(button => button.disabled = uploading);
 }
 
-async function library() {
-  const list = await api('/api/projects'); $('projectCount').textContent = list.length;
-  $('projectList').innerHTML = list.map(p => `<button class="project-item ${p.id === project?.id ? 'active' : ''}" data-id="${p.id}" title="${escape(p.name)}"><span class="project-icon">▧</span><span><strong>${escape(p.name)}</strong>${p.duration ? `<small>${time(p.duration)} · ${p.settings.fps} fps</small>` : '<small data-i18n="Đang chuẩn bị">Đang chuẩn bị</small>'}</span></button>`).join('');
+function renderLibrary(list) {
+  const projectList = $('projectList');
+  const focusedId = document.activeElement?.closest('.project-select')?.dataset.id;
+  $('projectCount').textContent = list.length;
+  projectList.innerHTML = list.map(p => {
+    const active = p.id === project?.id;
+    const info = p.duration ? `<small>${time(p.duration)} · ${p.settings.fps} fps</small>` : '<small data-i18n="Đang chuẩn bị">Đang chuẩn bị</small>';
+    return `<div class="project-item${active ? ' active' : ''}">
+      <button class="project-select" type="button" data-id="${escape(p.id)}" title="${escape(p.name)}"${active ? ' aria-current="true"' : ''}>
+        <span class="project-icon" aria-hidden="true">▧</span>
+        <span class="project-info"><strong>${escape(p.name)}</strong>${info}</span>
+      </button>
+    </div>`;
+  }).join('');
+  const activeItem = projectList.querySelector('.active');
+  projectMenu.open = false;
+  projectMenu.hidden = !activeItem;
+  if (activeItem) {
+    activeItem.append(projectMenu);
+    if (focusedId === project.id) activeItem.querySelector('.project-select').focus({preventScroll:true});
+  } else projectList.after(projectMenu);
   window.USMI18n.apply(); setControls();
-  return list;
 }
 function refreshHeader() {
-  $('projectTitle').removeAttribute('data-i18n'); $('projectTitle').textContent = project.name;
+  $('projectTitle').removeAttribute('data-i18n'); $('projectTitle').textContent = project.name; $('projectTitle').title = project.name;
   if (project.meta) label('projectSubtitle', project.meta.audio ? '{width} × {height} · {codec} · {size} MB · Có âm thanh' : '{width} × {height} · {codec} · {size} MB · Không âm thanh', { width:project.meta.width, height:project.meta.height, codec:project.meta.codec.toUpperCase(), size:(project.meta.size / 1024 / 1024).toFixed(1) });
   else label('projectSubtitle', 'Đang đọc thông tin video…');
   $('emptyState').hidden = true; $('editor').hidden = false;
@@ -76,7 +99,7 @@ function updatePosition(frame) {
 function basePreview() {
   if (!project?.build) return;
   cancelFrameLoad();
-  video.pause(); video.loop = false; mode = 'normal'; wholeVideo = false; label('previewMode', 'TOÀN BỘ VIDEO');
+  video.pause(); video.loop = false; wholeVideo = false; setPreviewMode('normal');
   video.src = endpoint(`media/preview.mp4?v=${project.build}`);
   $('frameImage').hidden = true; $('videoPlaceholder').hidden = true;
   $('thumbs').src = endpoint(`media/thumbs.jpg?v=${project.build}`);
@@ -114,7 +137,7 @@ function moveCue(index, value) {
   if (!Number.isFinite(frame)) return renderCues();
   if (frame === draft[index].frame) return renderCues();
   if (mode === 'seam') basePreview();
-  video.pause(); mode = 'normal'; wholeVideo = false; label('previewMode', 'TOÀN BỘ VIDEO');
+  video.pause(); wholeVideo = false; setPreviewMode('normal');
   draft[index].frame = frame; markDirty(); renderCues();
 }
 
@@ -167,13 +190,15 @@ function renderJob() {
   if (j) { label('jobPhase', j.phase || 'Đang xử lý…'); $('jobPercent').textContent = `${j.progress}%`; $('jobProgress').value = j.progress; $('jobSpinner').hidden = !busy; $('jobError').hidden = !j.error; label('jobError', j.error || ''); }
   setControls();
 }
-async function select(id) {
+async function select(id, knownProjects) {
   if (uploading) return;
   if (dirty && !confirm(t('Cue point chưa được lưu. Chuyển dự án và bỏ các thay đổi này?'))) return;
-  clearTimeout(pollTimer); video.pause(); cancelFrameLoad(); project = await api(`/api/projects/${id}`); localStorage.setItem('usm-project', id);
+  clearTimeout(pollTimer); video.pause(); cancelFrameLoad();
+  const [selected, list] = await Promise.all([api(`/api/projects/${id}`), knownProjects ?? api('/api/projects')]);
+  project = selected; localStorage.setItem('usm-project', id);
   draft = structuredClone(project.cues || []); markSaved(); refreshHeader(); syncSettings();
-  if (project.build) { basePreview(); renderCues(project.loop); } else { video.removeAttribute('src'); video.load(); $('frameImage').hidden = true; $('videoPlaceholder').hidden = false; }
-  renderDownloads(); renderJob(); await library(); if (busy) schedulePoll();
+  if (project.build) { basePreview(); renderCues(project.loop); } else { setPreviewMode('normal'); video.removeAttribute('src'); video.load(); $('frameImage').hidden = true; $('videoPlaceholder').hidden = false; }
+  renderDownloads(); renderJob(); renderLibrary(list); if (busy) schedulePoll();
 }
 function schedulePoll() {
   clearTimeout(pollTimer);
@@ -192,10 +217,10 @@ async function poll() {
 }
 async function completedJob() {
   if (project.job.type === 'prepare') { draft = structuredClone(project.cues); markSaved(); syncSettings(); basePreview(); renderCues(project.loop); }
-  if (project.job.type === 'seam' && project.seam?.build === project.build) { mode = 'seam'; video.src = project.seam.url; video.loop = true; $('frameImage').hidden = true; label('previewMode', 'ĐOẠN NỐI B → A'); setControls(); await video.play().catch(() => toast('Đoạn nối sẵn sàng. Bấm phát để xem.')); }
+  if (project.job.type === 'seam' && project.seam?.build === project.build) { setPreviewMode('seam'); video.src = project.seam.url; video.loop = true; $('frameImage').hidden = true; setControls(); await video.play().catch(() => toast('Đoạn nối sẵn sàng. Bấm phát để xem.')); }
   if (project.job.type === 'export') { renderDownloads(); $('downloads').open = true; toast('File USM đã sẵn sàng để tải xuống.'); }
   if (project.job.type === 'convert') { renderDownloads(); $('conversionDownloads').open = true; toast('Video đã sẵn sàng để tải xuống.'); }
-  await library();
+  renderLibrary(await api('/api/projects'));
 }
 async function takeJob(next) { cancelFrameLoad(); project = next; video.pause(); renderJob(); if (next.job?.status === 'done') await completedJob(); else if (busy) schedulePoll(); }
 
@@ -223,7 +248,7 @@ async function showFrame(n) {
   if (!project?.build || busy || uploading) return;
   if (mode === 'seam') basePreview();
   cancelFrameLoad(); setFrameLoading(true);
-  video.pause(); mode = 'normal'; label('previewMode', 'TỪNG FRAME'); setControls();
+  video.pause(); setPreviewMode('normal', 'TỪNG FRAME'); setControls();
   n = Math.max(0, Math.min(project.totalFrames - 1, n)); updatePosition(n); video.currentTime = n / project.settings.fps;
   const ticket = frameTicket, url = endpoint(`frame?n=${n}&v=${project.build}`);
   const controller = new AbortController(); frameController = controller;
@@ -251,10 +276,10 @@ async function startPlayback(nextMode) {
   const range = nextMode === 'loop' || nextMode === 'intro' ? getLoop() : null;
   if (range && !range.enabled) throw new Error('Đưa cả A và B vào trong video để bật loop.');
   if (mode === 'seam') basePreview();
-  cancelFrameLoad(); $('frameImage').hidden = true; mode = nextMode; wholeVideo = nextMode === 'normal'; video.loop = false;
+  cancelFrameLoad(); $('frameImage').hidden = true; setPreviewMode(nextMode); wholeVideo = nextMode === 'normal'; video.loop = false;
   if (nextMode === 'loop') video.currentTime = range.a / project.settings.fps;
   else if (nextMode === 'intro') video.currentTime = 0;
-  label('previewMode', ({ normal:'TOÀN BỘ VIDEO', loop:'LẶP A → B', intro:'INTRO → LOOP' })[mode]); setControls();
+  setControls();
   await video.play();
 }
 function onFrame() {
@@ -281,8 +306,18 @@ $('fileInput').onchange = safely(event => upload(event.target.files[0]));
 for (const event of ['dragover','dragenter']) $('emptyState').addEventListener(event, e => { e.preventDefault(); $('emptyState').classList.add('dragging'); });
 $('emptyState').addEventListener('dragleave', () => $('emptyState').classList.remove('dragging'));
 $('emptyState').addEventListener('drop', safely(event => { event.preventDefault(); $('emptyState').classList.remove('dragging'); return upload(event.dataTransfer.files[0]); }));
-$('projectList').onclick = safely(event => { const target = event.target.closest('[data-id]'); if (target) return select(target.dataset.id); });
-$('play').onclick = safely(async () => { cancelFrameLoad(); if (!video.paused) video.pause(); else if (mode === 'seam') await video.play(); else { $('frameImage').hidden = true; if (!wholeVideo && hasLoop()) { if (mode === 'normal') mode = 'intro'; label('previewMode', mode === 'loop' ? 'LẶP A → B' : 'INTRO → LOOP'); if (video.currentTime >= getLoop().b / project.settings.fps) video.currentTime = getLoop().a / project.settings.fps; } await video.play(); } });
+$('projectList').onclick = safely(event => { const button = event.target.closest('.project-select'); if (button) return select(button.dataset.id); });
+$('play').onclick = safely(async () => {
+  cancelFrameLoad();
+  if (!video.paused) return video.pause();
+  if (mode !== 'seam') {
+    $('frameImage').hidden = true;
+    const useLoop = !wholeVideo && hasLoop();
+    setPreviewMode(useLoop && mode === 'normal' ? 'intro' : mode);
+    if (useLoop && video.currentTime >= getLoop().b / project.settings.fps) video.currentTime = getLoop().a / project.settings.fps;
+  }
+  await video.play();
+});
 $('prevFrame').onclick = safely(() => showFrame(currentFrame - 1)); $('nextFrame').onclick = safely(() => showFrame(currentFrame + 1));
 $('scrub').oninput = () => {
   if (!project?.build || busy || uploading) return;
@@ -315,8 +350,9 @@ $('deleteProject').onclick = safely(async () => {
   await api(`/api/projects/${project.id}`, { method:'DELETE', body:'{}' });
   clearTimeout(pollTimer); video.pause(); cancelFrameLoad(); project = null; markSaved(); localStorage.removeItem('usm-project');
   $('editor').hidden = true; $('emptyState').hidden = false; $('jobPanel').hidden = true;
+  projectMenu.hidden = true; $('projectTitle').removeAttribute('title');
   label('projectTitle', 'Video ↔ USM.'); label('projectSubtitle', 'Chọn khung hình. Đặt A/B. Hoàn thiện vòng lặp.');
-  busy = false; setControls(); await library(); toast('Đã xóa dự án.');
+  busy = false; setControls(); renderLibrary(await api('/api/projects')); toast('Đã xóa dự án.');
 });
 $('importCue').onclick = () => $('cueInput').click();
 $('cueInput').onchange = safely(async event => { const file = event.target.files[0]; if (!file) return; const next = await api(endpoint('cues'), { method:'PUT', body:JSON.stringify({ text:await file.text() }) }); project = next; draft = structuredClone(next.cues); video.pause(); basePreview(); markSaved(); renderCues(next.loop); $('cueInput').value=''; toast('Đã nhập hai cue point A/B.'); });
@@ -328,7 +364,28 @@ $('convert').onclick = safely(async () => {
   await takeJob(await api(endpoint('convert'), { method:'POST', body:JSON.stringify(options) }));
 });
 window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue=''; } });
-const projectMenu = document.querySelector('.project-menu');
+function positionProjectMenu() {
+  if (!projectMenu.open) return;
+  const anchor = projectMenu.querySelector('summary').getBoundingClientRect();
+  const list = $('projectList').getBoundingClientRect();
+  const width = document.documentElement.clientWidth, height = window.innerHeight;
+  if (anchor.right < Math.max(0, list.left) || anchor.left > Math.min(width, list.right) ||
+      anchor.bottom < Math.max(0, list.top) || anchor.top > Math.min(height, list.bottom)) {
+    projectMenu.open = false;
+    return;
+  }
+  // The fixed panel can extend beyond the scrollable project list.
+  const panel = projectMenu.querySelector('.project-menu-items');
+  const gap = 6;
+  const left = Math.min(anchor.left, width - panel.offsetWidth - gap);
+  const below = anchor.bottom + gap;
+  const top = below + panel.offsetHeight <= height - gap ? below : anchor.top - panel.offsetHeight - gap;
+  panel.style.left = `${Math.max(gap, left)}px`;
+  panel.style.top = `${Math.max(gap, top)}px`;
+}
+projectMenu.addEventListener('toggle', positionProjectMenu);
+window.addEventListener('resize', positionProjectMenu);
+document.addEventListener('scroll', positionProjectMenu, true);
 projectMenu.addEventListener('click', event => { if (event.target.closest('button')) projectMenu.open = false; });
 document.addEventListener('click', event => {
   if (projectMenu.open && !projectMenu.contains(event.target)) projectMenu.open = false;
@@ -340,10 +397,11 @@ document.addEventListener('keydown', event => {
 });
 $('languageToggle').onclick = () => { window.USMI18n.setLanguage(window.USMI18n.language === 'vi' ? 'en' : 'vi'); if (project?.build && draft.length === 2) updateBand(); };
 window.USMI18n.apply(); setControls();
-document.addEventListener('keydown', safely(event => { if (/INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target.tagName) || !project?.build || busy) return; if (event.code === 'Space') { event.preventDefault(); $('play').click(); } if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); return showFrame(currentFrame + (event.key === 'ArrowLeft' ? -1 : 1)); } }));
+document.addEventListener('keydown', safely(event => { if (/INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY/.test(event.target.tagName) || !project?.build || busy) return; if (event.code === 'Space') { event.preventDefault(); $('play').click(); } if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); return showFrame(currentFrame + (event.key === 'ArrowLeft' ? -1 : 1)); } }));
 await safely(async () => {
   const health = await api('/api/health'); label('engine', !health.encoder ? 'Chưa kết nối encoder' : health.encoderInfo?.backend === 'native' ? 'Native USM · Sẵn sàng' : 'Encoder đã kết nối'); $('engine').classList.toggle('offline', !health.encoder); label('uploadHint', 'MP4 · WEBM · MOV · MKV · AVI · USM · Tối đa {max} MB / 10 phút', { max:health.maxUploadMB });
   if(health.encoderInfo?.maxEncodeMB) label('exportLimit', 'Ngân sách đóng gói: {max} MB. Video dài có thể cần giảm bitrate.', { max:health.encoderInfo.maxEncodeMB });
-  const list = await library(), last = localStorage.getItem('usm-project');
-  if (last && list.some(p => p.id === last)) await select(last);
+  const list = await api('/api/projects'), last = localStorage.getItem('usm-project');
+  renderLibrary(list);
+  if (last && list.some(p => p.id === last)) await select(last, list);
 })();

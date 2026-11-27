@@ -15,7 +15,7 @@ The interface supports **English and Vietnamese**. Use the language button in th
 - Upload MP4, WebM, MOV, MKV, AVI, readable USM files and other formats supported by the installed FFmpeg build. Upload and processing progress appear in the sidebar.
 - Play the normalized preview or inspect individual frames, with a loading indicator while the selected frame is being retrieved.
 - Edit exactly two cue points, A and B, using draggable timeline markers, keyboard nudges, or **Set A / Set B**; jump to them with **Go to A / Go to B**.
-- Import/export A/B cue text and project JSON from the **Project** menu.
+- Import/export A/B cue text and project JSON from the settings gear on the selected project in the sidebar.
 - Preview A–B loops, intro-then-loop playback, and a rendered clip across the loop boundary.
 - Export MPEG-1 video with optional stereo ADX audio in a USM container, with cue points embedded.
 - Download USM, cue text, project JSON, and a structural/decoder verification report from the native encoder.
@@ -68,7 +68,7 @@ This repository supplies source and local build instructions. It does not advert
 6. If you change resolution or FPS, apply the settings. A/B are preserved by time and remapped to the nearest frame; the end boundary remains at the new video end.
 7. Choose bitrate and whether to keep audio, then export. **Export is ready** expands to show the latest result's downloads. Each export stores a snapshot of settings and cues. Exporting processes the full video, not just the A/B interval.
 
-The **Project / Dự án** menu contains project JSON save/restore, A/B text import/download, and project deletion. It closes when you select an action, click outside, or press Escape. Deleting a project removes its uploaded copy, previews and exports, not the original file on your computer.
+The gear on the selected sidebar project opens **Project settings / Cài đặt dự án**. It contains project JSON save/restore, A/B text import/download, and project deletion. It closes when you select an action, click outside, or press Escape. Deleting a project removes its uploaded copy, previews and exports, not the original file on your computer.
 
 The loop controls simulate the interval you select. They do not infer game behavior from names such as `loop_point`. Actual cue handling is up to the game client.
 

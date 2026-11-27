@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { Window } from 'happy-dom';
 
 // DOM-level tests only; these do not launch or automate a browser.
-async function setup(overrides = {}, {language = 'vi', restore = true} = {}) {
+async function setup(overrides = {}, {language = 'vi', restore = true, otherProjects = []} = {}) {
   const window = new Window({ url: 'http://localhost:3210', settings: { disableCSSFileLoading: true, disableJavaScriptFileLoading: true } });
   window.document.write(await readFile(new URL('../public/index.html', import.meta.url), 'utf8'));
   const p = { id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',name:'<video>.webm',build:'build-test',duration:8,totalFrames:240,meta:{width:1920,height:1080,codec:'vp9',size:668766,audio:false},settings:{width:1920,height:1080,fps:30,bitrate:6000000,audio:false},cues:[{name:'start',id:0,frame:0},{name:'loop_point',id:1,frame:15},{name:'loop_start',id:2,frame:195},{name:'end',id:0,frame:240}],loop:{a:15,b:195},exports:[],job:{status:'done',type:'prepare',progress:100}};
   Object.assign(p, overrides);
+  const projects = [p, ...otherProjects.map(other => ({...p, ...other}))];
   const calls=[];
   window.HTMLElement.prototype.setPointerCapture=function(){};
   window.HTMLElement.prototype.releasePointerCapture=function(){};
@@ -17,11 +18,12 @@ async function setup(overrides = {}, {language = 'vi', restore = true} = {}) {
   window.structuredClone=structuredClone;
   window.fetch=async (url, options={}) => {
     calls.push({url,options});
+    const requested = projects.find(item => item.id === url.split('/')[3]) || p;
     let result;
     if (url === '/api/health') result={encoder:true,maxUploadMB:512};
-    else if (url === '/api/projects') result=[p];
-    else if (options.method === 'PUT') {const b=JSON.parse(options.body);p.cues=b.cues;p.loop=b.loop;result=p;}
-    else result=p;
+    else if (url === '/api/projects') result=projects;
+    else if (options.method === 'PUT') {const b=JSON.parse(options.body);requested.cues=b.cues;requested.loop=b.loop;result=requested;}
+    else result=requested;
     return {ok:true,json:async()=>structuredClone(result),blob:async()=>new window.Blob(['frame'])};
   };
   Object.defineProperty(window.HTMLMediaElement.prototype,'paused',{get(){return !this._playing;}});
@@ -41,6 +43,9 @@ test('loaded project enables editor, escapes filename, shows EOF cue and correct
     assert.equal($('editor').hidden,false);
     assert.equal($('projectTitle').textContent,'<video>.webm');
     assert.equal($('projectTitle').children.length,0);
+    const heading = $('previewMode').closest('.preview-card .card-heading');
+    assert.ok(heading.contains($('projectTitle')) && heading.contains($('projectSubtitle')));
+    assert.equal($('previewMode').textContent,'XEM TRƯỚC');
     assert.equal($('cueRows'),null);
     assert.equal($('markerA').getAttribute('aria-valuenow'),'15'); assert.equal($('markerB').getAttribute('aria-valuenow'),'195');
     assert.equal(window.document.querySelector('.library-bottom'),null);
@@ -130,10 +135,16 @@ test('marker keyboard cannot cross A/B',async()=>{
   } finally {await window.happyDOM.close();}
 });
 
-test('normal playback does not automatically loop whole video',async()=>{
-  const {window,$,flush}=await setup({loop:{a:0,b:240}});
+test('normal playback shows PREVIEW and does not automatically loop whole video',async()=>{
+  const {window,$,flush}=await setup({loop:{a:0,b:240}}, {language:'en'});
   try {
+    assert.equal($('previewMode').textContent,'PREVIEW');
+    $('nextFrame').click(); await flush();
+    assert.equal($('previewMode').textContent,'FRAME BY FRAME');
+    $('play').click(); await flush();
+    assert.equal($('previewMode').textContent,'PREVIEW');
     $('normalPlay').click(); await flush();
+    assert.equal($('previewMode').textContent,'PREVIEW');
     assert.equal($('video').loop,false);
   } finally {await window.happyDOM.close();}
 });
@@ -240,6 +251,7 @@ test('saved English preference translates job progress, empty state and every an
   try {
     assert.equal(empty.$('projectTitle').textContent,'Video ↔ USM.');
     assert.equal(empty.$('emptyState').hidden,false);
+    assert.equal(empty.window.document.querySelector('.project-menu').hidden,true);
     assert.equal(empty.$('setB').disabled,true);
   } finally {await empty.window.happyDOM.close();}
 });
@@ -279,6 +291,36 @@ function deferred() {
   const promise = new Promise((yes,no)=>{resolve=yes;reject=no;});
   return {promise,resolve,reject};
 }
+
+test('the settings gear follows the active sidebar project and keeps draft cues intact', async () => {
+  const other = {id:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name:'Second.mp4'};
+  const {window,$,calls,flush} = await setup({}, {otherProjects:[other]});
+  try {
+    const menu = window.document.querySelector('.project-menu');
+    const current = () => $('projectList').querySelector('.project-select[aria-current="true"]');
+    assert.equal(menu.parentElement, current().closest('.project-item.active'));
+    assert.equal(menu.hidden, false);
+    $('markerA').dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight'}));
+    const before = calls.length;
+    const gear = menu.querySelector('summary');
+    gear.click(); await flush();
+    assert.equal(menu.open, true);
+    assert.equal(calls.length, before);
+    assert.equal($('markerA').getAttribute('aria-valuenow'), '16');
+    assert.equal(gear.getAttribute('aria-label'), 'Cài đặt dự án');
+    $('languageToggle').click();
+    assert.equal(gear.getAttribute('aria-label'), 'Project settings');
+    window.confirm = () => true;
+    const second = $('projectList').querySelector(`[data-id="${other.id}"]`);
+    second.focus(); second.click(); await flush();
+    assert.equal(current().dataset.id, other.id);
+    assert.equal(window.document.activeElement, current());
+    assert.equal(menu.parentElement, current().closest('.project-item.active'));
+    assert.equal(menu.open, false);
+    assert.equal($('projectTitle').textContent, other.name);
+    assert.equal($('projectList').querySelectorAll('.active').length, 1);
+  } finally { await window.happyDOM.close(); }
+});
 
 test('Project menu closes on outside click without blocking the clicked control',async()=>{
   const {window,$}=await setup();
@@ -461,7 +503,7 @@ test('switching project clears loader and prevents old frames appearing',async()
   const requests=pendingFrames(window);
   try {
     $('goToB').click(); await flush();
-    window.document.querySelector('.project-item').click(); await flush();
+    window.document.querySelector('.project-select').click(); await flush();
     assert.equal(requests[0].options.signal.aborted,true);
     assert.equal($('frameLoading').hidden,true);
     requests[0].resolve(frameResponse(window)); await flush();
